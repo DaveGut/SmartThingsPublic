@@ -32,16 +32,11 @@ This is the beta version of the device handler adding TTS Support.
 Known Issues and Concerns
 		a.	TuneIn continues to be slow and often does not recover
 			(requires pressing play on control to continue).
-		b.	Not all TTS functions are supported.
-			"playTextAndResume" - YES
-			"playTrackAndResume" - YES
-			"playTextAndRestore" - YES
-			"playTrackAndRestore" - YES
-			"playTextAndTrack" - NO
-			"playSoundAndTrack" - NO
-			"playTrackAtVolume" - NO
-			"playTrack" - NO
-			"playText" - NO
+		b.	TTS Implementation is as ST capability Audio
+            Notification:
+				playTrackAndResume(uri, duration, level)
+				playTrackAndRestore(uri, duration, level)
+				playTrackAtVolume(uri, level) - NOT IMPLEMENTED.
 01-19	Fixed error causing UPnP play not to work at times.
 		Fixed logic to assure non-wifi modes will restore
         after UPnP audio play.
@@ -1182,45 +1177,7 @@ def schedSetTrackDescription(playtime) {
 //	======================================
 //	===== Play external URI Commands =====
 //	======================================
-def playTextAndResume(text, volume=null) {
-	log.info "${device.label}_playTextAndResume($text, $volume)"
-	def sound = textToSpeech(text)
-	playTrackAndResume(sound.uri, (sound.duration as Integer) + 1, volume)
-}
-
-def playTextAndRestore(text, volume=null) {
-	log.info "${device.label}_playTextAndResume($text, $volume)"
-	def sound = textToSpeech(text)
-	playTrackAndRestore(sound.uri, (sound.duration as Integer) + 1, volume)
-}
-
-def playTextAndTrack(text, trackData, volume=null) {
-	log.info "${device.label}_playTextAndTrack($text, $trackData, $volume)"
-	def sound = textToSpeech(text)
-	playSoundAndTrack(sound.uri, (sound.duration as Integer) + 1, trackData, volume)
-}
-
-def playSoundAndTrack(soundUri, duration, trackData, volume=null) {
-	log.debug "${device.label}_playSoundAndTrack: Not Supported."
-	setErrorMsg("_playSoundAndTrack: Not Supported.")
-}
-
-def playTrack(String uri, metaData="") {
-	log.debug "${device.label}_playTrack: Not Supported."
-	setErrorMsg("_playTrack: Not Supported.")
-}
-
-def playTrack(Map trackData) {
-	log.debug "${device.label}_playTrack: Not Supported."
-	setErrorMsg("_playTrack: Not Supported.")
-}
-
-def playText(String msg) {
-	log.debug "${device.label}_playText: Not Supported."
-	setErrorMsg("_playText: Not Supported.")
-}
-
-def playTrackAtVolume(String uri, volume) {
+def playTrack(String uri, volume) {
 	log.debug "${device.label}_playTrackAtVolume: Not Supported."
 	setErrorMsg("_playTrackAtVolume: Not Supported.")
 }
@@ -1238,6 +1195,7 @@ def playTrackAndRestore(uri, duration, volume=null) {
 }
 
 def playTrackAndResume(uri, duration, volume=null) {
+//	playTrackAndResume(sound.uri, (sound.duration as Integer) + 1, volume)
 	def inputSource = device.currentValue("inputSource")
 	if (inputSource == "wifi" && device.currentValue("status") != "playing") {
 	   	state.resumePlay = "no"
