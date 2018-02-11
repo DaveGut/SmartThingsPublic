@@ -371,14 +371,15 @@ def getSources() {
 			case "HW-MS750":
 			case "HW-MS7500":
 			case "HW-K850":
-			sources = ["wifi", "bt", "aux", "optical", "hdmi1", "hdmi2"]
-			break
+				sources = ["wifi", "bt", "aux", "optical", "hdmi1", "hdmi2"]
+				break
 			case "HW-K550":
 			case "HW-J650":
 			case "HW-H750":
  					sources = ["wifi", "bt", "soundshare", "aux", "optical", "usb", "hdmi"]
  				break
 			default:
+				sources = ["wifi","bt","aux","optical"]
 				break
 		}
 	}

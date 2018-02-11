@@ -347,7 +347,7 @@ def energyMeterResponse(cmdResponse) {
 		if (state.powerScale == "power_mw") {
 			powerConsumption = Math.round(powerConsumption/10) / 100
 		} else {
-			powerConsumption = Math.round(100000*powerConsumption) / 100
+			powerConsumption = Math.round(100*powerConsumption) / 100
 		}
 		sendEvent(name: "power", value: powerConsumption)
 		log.info "$device.name $device.label: Updated CurrentPower to $powerConsumption"
