@@ -3,7 +3,7 @@ TP-Link Plug and Switch Device Handler, 2018, Version 2
 Copyright 2018 Dave Gutheinz
 
 Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this  file except in compliance with the
+you may not use this file except in compliance with the
 License. You may obtain a copy of the License at:
 
 	http://www.apache.org/licenses/LICENSE-2.0
@@ -17,15 +17,18 @@ License.
 
 Discalimer:  This Service Manager and the associated Device 
 Handlers are in no way sanctioned or supported by TP-Link.  
-All  development is based upon open-source data on the 
+All development is based upon open-source data on the 
 TP-Link devices; primarily various users on GitHub.com.
 
 	===== History =============================================
 2018-01-31	Update to Version 2
-		a.	Common file content for all bulb implementations,
-			using separate files by model only.
-		b.	User file-internal selection of Energy Monitor
-			function enabling.
+	a.	Common file content for all bulb implementations,
+		using separate files by model only.
+	b.	User file-internal selection of Energy Monitor
+		function enabling.
+2018-02-17	Updated Energy Monitor Functions
+	a.	Allowed for full month collection in previous month
+	b.	Cleaned-up algorithm to use Groovy date.
 //	===== Hub or Cloud Installation =========================*/
 	//def installType = "Cloud"
 	def installType = "Hub"
@@ -69,7 +72,7 @@ metadata {
 			}
 		}
 		
-		standardTile("refresh", "capability.refresh", width: 2, height: 1,  decoration: "flat") {
+		standardTile("refresh", "capability.refresh", width: 2, height: 1, decoration: "flat") {
 			state "default", label:"Refresh", action:"refresh.refresh"
 		}
 		
@@ -155,11 +158,11 @@ def update() {
 			runEvery30Minutes(refresh)
 			log.info "Refresh Scheduled for every 30 minutes"
 	}
-	schedule("0 30 0 * * ?", setCurrentDate)
-	schedule("0 45 0 * * ?", getEnergyStats)
+	schedule("0 05 0 * * ?", setCurrentDate)
+	schedule("0 10 0 * * ?", getEnergyStats)
 	setCurrentDate()
 	runIn(2, refresh)
-	runIn(8, getEnergyStats)
+	runIn(7, getEnergyStats)
 }
 
 void uninstalled() {
@@ -188,7 +191,6 @@ def poll() {
 def refresh(){
 	sendCmdtoServer('{"system":{"get_sysinfo":{}}}', "deviceCommand", "commandResponse")
 	runIn(2, getPower)
-	runIn(5, getConsumption)
 }
 
 def commandResponse(cmdResponse){
@@ -202,12 +204,14 @@ def commandResponse(cmdResponse){
 		log.info "${device.name} ${device.label}: Power: ${status}"
 		sendEvent(name: "switch", value: status)
 	}	else {
+		return
 	}
 }
 
 //	===== Get Current Energy Data =====
 def getPower(){
 	sendCmdtoServer("""{"${state.emeterText}":{"get_realtime":{}}}""", "deviceCommand", "energyMeterResponse")
+	runIn(5, getConsumption)
 }
 
 def energyMeterResponse(cmdResponse) {
@@ -256,27 +260,29 @@ def getEnergyStats() {
 	state.monTotEnergy = 0
 	state.monTotDays = 0
 	state.wkTotEnergy = 0
-	sendCmdtoServer("""{"emeter":{"get_daystat":{"month": ${state.monthToday}, "year": ${state.yearToday}}}}""", "emeterCmd", "engrStatsResponse")
+	state.wkTotDays = 0
+	sendCmdtoServer("""{"${state.emeterText}":{"get_daystat":{"month": ${state.monthToday}, "year": ${state.yearToday}}}}""", "emeterCmd", "engrStatsResponse")
 	runIn(4, getPrevMonth)
 }
 
 def getPrevMonth() {
-	if (state.dayToday < 31) {
-		def month = state.monthToday
-		def year = state.yearToday
-		if (month == 1) {
-			year -= 1
-			month = 12
-			sendCmdtoServer("""{"emeter":{"get_daystat":{"month": ${month}, "year": ${year}}}}""", "emeterCmd", "engrStatsResponse")
-		} else {
-			month -= 1
-			sendCmdtoServer("""{"emeter":{"get_daystat":{"month": ${month}, "year": ${year}}}}""", "emeterCmd", "engrStatsResponse")
-		}
+//	If all of the data is in this month, do not request previous month.
+//	This will occur when the current month is 31 days.
+	if (state.monthToday == state.monthStart) {
+		return
+	} else {
+		sendCmdtoServer("""{"${state.emeterText}":{"get_daystat":{"month": ${state.monthStart}, "year": ${state.yearStart}}}}""", "emeterCmd", "engrStatsResponse")
 	}
 }
 
 def engrStatsResponse(cmdResponse) {
-	def dayList = cmdResponse["emeter"]["get_daystat"].day_list
+/*	
+	This method parses up to two energy status messages from the device,
+	adding the energy for the previous 30 days and week, ignoring the
+	current day.  It then calculates the 30 and 7 day average formatted
+	in kiloWattHours to two decimal places.
+*/
+	def dayList = cmdResponse[state.emeterText]["get_daystat"].day_list
 	if (!dayList[0]) {
 		log.info "$device.name $device.label: Month has no energy data."
 		return
@@ -284,39 +290,43 @@ def engrStatsResponse(cmdResponse) {
 	def monTotEnergy = state.monTotEnergy
 	def wkTotEnergy = state.wkTotEnergy
 	def monTotDays = state.monTotDays
-	Calendar calendar = GregorianCalendar.instance
-	calendar.set(state.yearToday, state.monthToday, 1)
-	def prevMonthDays = calendar.getActualMaximum(GregorianCalendar.DAY_OF_MONTH)
-	def weekEnd = state.dayToday + prevMonthDays - 1
-	def weekStart = weekEnd - 6
-	def dataMonth = dayList[0].month
-	def currentMonth = state.monthToday
-	def addedDays = 0
-	if (currentMonth == dataMonth) {
-		addedDays = prevMonthDays
+	def wkTotDays = state.wkTotDays
+	if (dayList[0].month == state.monthToday) {
+		for (int i = 0; i < dayList.size(); i++) {
+			def energyData = dayList[i]
+			monTotEnergy += energyData."${state.energyScale}"
+			monTotDays += 1
+			if (state.dayToday < 8 || energyData.day >= state.weekStart) {
+				wkTotEnergy += energyData."${state.energyScale}"
+				wkTotDays += 1
+			}
+			if(energyData.day == state.dayToday) {
+				monTotEnergy -= energyData."${state.energyScale}"
+				wkTotEnergy -= energyData."${state.energyScale}"
+				monTotDays -= 1
+				wkTotDays -= 1
+			}
+		}
 	} else {
-		addedDays = 0
-	}
-	for (int i = 0; i < dayList.size(); i++) {
-		def wattHrData = dayList[i]
-		//	do not count today in days or consumption
-		if(wattHrData.day == state.dayToday && wattHrData.month == state.monthToday) {
-			monTotDays -= 1
-		} else {
-			monTotEnergy += wattHrData."${state.energyScale}"
-		}
- 		def adjustDay = wattHrData.day + addedDays
-		if (adjustDay <= weekEnd && adjustDay >= weekStart) {
-			wkTotEnergy += wattHrData."${state.energyScale}"
+		for (int i = 0; i < dayList.size(); i++) {
+			def energyData = dayList[i]
+			if (energyData.day >= state.dayStart) {
+				monTotEnergy += energyData."${state.energyScale}"
+				monTotDays += 1
+			}
+			if (energyData.day >= state.weekStart && state.dayToday < 8) {
+				wkTotEnergy += energyData."${state.energyScale}"
+				wkTotDays += 1
+			}
 		}
 	}
-	monTotDays += dayList.size()
 	state.monTotDays = monTotDays
 	state.monTotEnergy = monTotEnergy
 	state.wkTotEnergy = wkTotEnergy
+	state.wkTotDays = wkTotDays
 	log.info "$device.name $device.label: Update 7 and 30 day energy consumption statistics"
-	def monAvgEnergy = monTotEnergy/(monTotDays)
-	def wkAvgEnergy = wkTotEnergy/7
+	def monAvgEnergy =monTotEnergy/monTotDays
+	def wkAvgEnergy = wkTotEnergy/wkTotDays
 	if (state.powerScale == "power_mw") {
 		monAvgEnergy = Math.round(monAvgEnergy/10)/100
 		wkAvgEnergy = Math.round(wkAvgEnergy/10)/100
@@ -336,15 +346,18 @@ def engrStatsResponse(cmdResponse) {
 
 //	===== Obtain Week and Month Data =====
 def setCurrentDate() {
-	sendCmdtoServer("""{"time":{"get_time":null}}""", "deviceCommand", "currentDateResponse")
-}
-
-def currentDateResponse(cmdResponse) {
-	def setDate =  cmdResponse["time"]["get_time"]
- 	state.dayToday = setDate.mday.toInteger()
-	state.monthToday = setDate.month.toInteger()
-	state.yearToday = setDate.year.toInteger()
-	log.info "$device.name $device.label: Date set to ${setDate}"
+	def df = new java.text.SimpleDateFormat("ddMMyyyy")
+	df.setTimeZone(location.timeZone)
+	def curDay = df.format(new Date())
+	state.dayToday = curDay.substring(0,2).toInteger()
+	state.monthToday = curDay.substring(2,4).toInteger()
+	state.yearToday = curDay.substring(4,8).toInteger()
+	def dayOne = df.format(new Date()-30)
+	state.dayStart = dayOne.substring(0,2).toInteger()
+	state.monthStart = dayOne.substring(2,4).toInteger()
+	state.yearStart = dayOne.substring(4,8).toInteger()
+	def wkStart = df.format(new Date()-7)
+	state.weekStart = wkStart.substring(0,2).toInteger()
 }
 
 //	----- SEND COMMAND TO CLOUD VIA SM -----

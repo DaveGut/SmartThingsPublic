@@ -390,21 +390,28 @@ def getSources() {
 //	===== Device Control Functions =====
 //	====================================
 def on() {
-	sendEvent(name: "switch", value: "1")
 	if (state.hwtype == "HW-") {
 		SetPowerStatus("1")
 	}
-	play()
-	runIn(2, refresh)
+	sendEvent(name: "switch", value: "1")
+    def cmds = []
+	cmds << play()
+	cmds << GetFunc()
+	cmds << getPlayStatus()
+	cmds << GetVolume()
+    cmds << GetMute()
+    cmds << setTrackDescription()
+    cmds
 }
 
 def off() {
-	sendEvent(name: "switch", value: "0")
 	stop()
 	if (state.hwtype == "HW-") {
 		SetPowerStatus("0")
 	}
-	runIn(2, refresh)
+//	getPlayStatus()
+	sendEvent(name: "switch", value: "0")
+	sendEvent(name: "trackDescription", value: "Player is Stopped")
 }
 
 def setInputSource() {
@@ -420,6 +427,7 @@ def setInputSource() {
 	sendEvent(name: "inputSource", value: sources[sourceNo])
 	log.info "${device.label}:  Source changed to ${sources[sourceNo]}"
 	SetFunc(sources[sourceNo])
+    runIn(1, setTrackDescription)
 }
 
 def setLevel(level) {
@@ -465,17 +473,38 @@ def getPwr() {
 //	===== Music Control Functions =====
 //	===================================
 def play() {
-	playPause("resume", "play")
+//	def submode = state.subMode
+	switch(state.subMode) {
+		case "dlna":
+			uic_SetPlaybackControl("resume")
+			break
+		case "cp":
+			cpm_SetPlaybackControl("play")
+			break
+		default:
+		 	return
+	}
+	setTrackDescription()
 }
 
 def pause() {
-	playPause("pause", "pause")
+//	def submode = state.subMode
+	switch(state.subMode) {
+		case "dlna":
+			uic_SetPlaybackControl("pause")
+			break
+		case "cp":
+			cpm_SetPlaybackControl("pause")
+			break
+		default:
+		 	return
+	}
 	unschedule(setTrackDesciption)
 }
 
 def stop() {
-	def submode = state.subMode
-	switch(submode) {
+//	def submode = state.subMode
+	switch(state.subMode) {
 		case "dlna":
 			uic_SetPlaybackControl("pause")
 			break
@@ -488,28 +517,9 @@ def stop() {
 	unschedule(setTrackDesciption)
 }
 
-def playPause(uicStatus, cpmStatus) {
-	def submode = state.subMode
-	switch(submode) {
-		case "dlna":
-			uic_SetPlaybackControl(uicStatus)
-			break
-		case "cp":
-			cpm_SetPlaybackControl(cpmStatus)
-			break
-		case "dmr":
-			uic_SetPlaybackControl(uicStatus)
-			cpm_SetPlaybackControl(cpmStatus)
-			break
-		default:
-		 	return
-	}
-	runIn(1, getPlayStatus)
-}
-
 def getPlayStatus() {
-	def submode = state.subMode
-	switch(submode) {
+//	def submode = state.subMode
+	switch(state.subMode) {
 		case "dlna":
 			uic_GetPlayStatus()
 			break
@@ -522,16 +532,31 @@ def getPlayStatus() {
 }
 
 def previousTrack() {
-	def submode = state.subMode
+//	def submode = state.subMode
 	def player = state.currentPlayer
-	if (submode == "cp") {
+	if (state.subMode == "cp") {
 		if (player != "Amazon" && player != "AmazonPrime") {
 			log.info "${device.label}_previousTrack: Previous Track does not work for this player"
 			setErrorMsg("previousTrack: Previous Track does not work for this player")
 			return
 		}
 	}
-	trackChange("previous", "PreviousTrack")
+//  def submode = state.subMode
+	switch(state.subMode) {
+		case "dlna":
+			SetTrickMode("previous")
+			break
+		case "cp":
+			SetPreviousTrack()
+			runIn(2, SetPreviousTrack)
+			break
+		default:
+			log.info "${device.label}_previousChange: Previous track not supported."
+			setErrorMsg("trackChange: Previous track not supported.")
+			return
+	}
+	runIn(4, setTrackDescription)
+//	trackChange("previous", "PreviousTrack")
 }
 
 def nextTrack() {
@@ -539,28 +564,18 @@ def nextTrack() {
 	def player = state.currentPlayer
 	if (submode == "cp") {
 		if (cp != "Amazon" && player != "AmazonPrime" && player != "Pandora" && player != "8tracks") {
-			log.info "${device.label}_previousTrack: Previous Track does not work for this player"
 			log.info "${device.label}_nextTrack: Next Track does not work for this player"
 			setErrorMsg("nextTrack: Next Track does not work for this player")
 			return
 		}
 	}
-	trackChange("next", "SkipCurrentTrack")
-}
-
-def trackChange(uicTrackChg, cpmTrackChg) {
-  def submode = state.subMode
-	switch(submode) {
+//	def submode = state.subMode
+	switch(state.subMode) {
 		case "dlna":
-			SetTrickMode(uicTrackChg)
+			SetTrickMode("next")
 			break
 		case "cp":
-			if (cpmTrackChg == "SkipCurrentTrack") {
-				SetSkipCurrentTrack()
-			} else {
-				SetPreviousTrack()
-				runIn(2, SetPreviousTrack)
-			}
+			SetSkipCurrentTrack()
 			break
 		default:
 			log.info "${device.label}_trackChange: Previous/Next not supported."
@@ -568,6 +583,7 @@ def trackChange(uicTrackChg, cpmTrackChg) {
 			return
 	}
 	runIn(4, setTrackDescription)
+//	trackChange("next", "SkipCurrentTrack")
 }
 
 def toggleShuffle() {
@@ -1128,6 +1144,7 @@ def setTrackDescription() {
 	} else {
 		switch(submode) {
 			case "dlna":
+log.debug "setTrackDescription with case WiFi: DLNA"
 			//	use default "WiFi" until DLNA Functions are tested.
 				sendEvent(name: "trackDescription", value: "WiFi (DLNA)")
 				log.info "${device.label}_setTrackDescription: Updated trackDesciption to WiFi (DLNA)"
@@ -1311,16 +1328,15 @@ def refresh() {
 		restorePlayer data for Multiroom Ap
 		called stations.
 	*/
-log.trace "RUNNING REFRESH"
     getPwr()
 	GetFunc()
 	getPlayStatus()
 	GetVolume()
-	def subMode = state.subMode
-	 if (subMode == "cp") {
-		state.restorePlayer = "yes"
-		GetRadioInfo("getCpDataParse")		
-	}
+//	def subMode = state.subMode
+//	 if (state.subMode == "cp") {
+//		state.restorePlayer = "yes"
+//		GetRadioInfo("getCpDataParse")		
+//	}
     setTrackDescription()
 }
 
@@ -1373,24 +1389,23 @@ private sendUpnpCmd(String action, Map body = [InstanceID:0, Speed:1]) {
 def generalResponse(resp) {
 	def respMethod = (new XmlSlurper().parseText(resp.body)).method
 	def respData = (new XmlSlurper().parseText(resp.body)).response
-//log.trace "${device.label}_generalResponse_${respMethod}:  Parsing method."
+log.trace "${device.label}_generalResponse_${respMethod}:  Parsing method."
 	switch(respMethod) {
+//	UPDATE
+//	REMOVE AS MANY FUNCTION CALLS FROM HERE AS POSSIBLE.  Assume response time and use runIn
 //	----- SOUNDBAR STATUS METHODS -----
 		case "PowerStatus":
 			def pwrStat = respData.powerStatus
 			sendEvent(name: "switch", value: pwrStat)
-			if (pwrStat == "0") {
-				sendEvent(name: "trackDescription", value: "Power is off")
-			}
 			break
 		case "CurrentFunc":
-			if (respData.submode == "dmr") {
+			if (respData.submode == "dmr") {	//	Ignore dmr encountered during TTS
 				return
 			} else if (respData.function != device.currentValue("inputSource") || respData.submode != state.subMode) {
 				sendEvent(name: "inputSource", value: respData.function)
 				state.subMode = "${respData.submode}"
 				log.info "${device.label}_generalResponse_CurrentFunc:  Updated Source to ${respData.function} and Submode to ${state.subMode}"
-				setTrackDescription()
+//				setTrackDescription()
 			}
 			break
 		case "VolumeLevel":
@@ -1462,7 +1477,8 @@ def generalResponse(resp) {
 			break
 //	----- MUSIC INFORMATION METHODS
 		case "MusicInfo":
-			if (respData == "No Music") {
+			if (respData == "No Music" || respData.errCode == "fail to play") {
+            	log.info "${device.label}_generalResponse_MusicInfo: response is no music or fail to play."
 				return
 			}
 			sendEvent(name: "trackDescription", value: "${respData.title}\n\r${respData.artist}")
@@ -1471,6 +1487,12 @@ def generalResponse(resp) {
 			runIn(5, getPlayTime)
 			break
 		case "RadioInfo":
+            if (respData.playstatus == "play") {
+				sendEvent(name: "status", value: "playing")
+            } else {
+				sendEvent(name: "status", value: "paused")
+            	return
+            }
 			def player = respData.cpname
 			state.updateTrackDescription = "yes"
 			def trackDesc = ""
@@ -1599,13 +1621,13 @@ def generalResponse(resp) {
 			break
 		case "StartPlaybackEvent":
 		case "MediaBufferStartEvent":
-//		case "StopPlaybackEvent":
-//		case "EndPlaybackEvent":
-//		case "MediaBufferEndEvent":
-//		case "PausePlaybackEvent":
+		case "StopPlaybackEvent":
+		case "EndPlaybackEvent":
+		case "MediaBufferEndEvent":
+		case "PausePlaybackEvent":
 		//	runIn used to prevent multiple calls to getPlayStatus
-			nextMsg()
-			getPlayStatus()
+//			nextMsg()
+			runIn(2,getPlayStatus)
 			break
 		default:
 			nextMsg()
@@ -1620,7 +1642,7 @@ def generalResponse(resp) {
 def searchRadioList(resp) {
 	def respMethod = (new XmlSlurper().parseText(resp.body)).method
 	def respData = (new XmlSlurper().parseText(resp.body)).response
-//log.trace "${device.label}_searchRadioList_${respMethod}:  Parsing method."
+log.trace "${device.label}_searchRadioList_${respMethod}:  Parsing method."
 	def player = respData.cpname
 	if (player == "AmazonPrime" && respData.root == "My Music" && respData.category.@isroot == "1") {
 		GetSelectRadioList("0", "searchRadioList")
@@ -1664,7 +1686,7 @@ def searchRadioList(resp) {
 
 def titleSelected(resp) {
 	def respMethod = (new XmlSlurper().parseText(resp.body)).method
-//log.trace "${device.label}_titleSelected_${respMethod}:  Parsing method."
+log.trace "${device.label}_titleSelected_${respMethod}:  Parsing method."
 	SetPlaySelect("0", "generalResponse")
 	cpm_SetPlaybackControl("play")
 	runIn(5, play)
@@ -1674,7 +1696,7 @@ def titleSelected(resp) {
 private getCpDataParse(resp) {
 	def respMethod = (new XmlSlurper().parseText(resp.body)).method
 	def respData = (new XmlSlurper().parseText(resp.body)).response
-//log.trace "${device.label}_getCpDataParse_${respMethod}:  Parsing method."
+log.trace "${device.label}_getCpDataParse_${respMethod}:  Parsing method."
 	def player = respData.cpname
 	state.currentPlayer = "${player}"
 	def cpChannels = state.cpChannels
@@ -1737,17 +1759,24 @@ def parse(String description) {
 		def respMethod = response.method
 		switch(respMethod) {
 			case "MainInfo":
+            case "RadioInfo":
 			case "StartPlaybackEvent":
 			case "MediaBufferStartEvent":
+            case "PlaybackStatus":
+            case "PlayStatus":
+            case "PowerStatus":
+            case "VolumeLevel":
+            case "MuteStatus":
+            case "CurrentFunc":
 				generalResponse(resp)
-//log.trace "${device.label}_parse_${respMethod}:  Forwarded to generalResponse."
+log.trace "${device.label}_parse_${respMethod}:  Forwarded to generalResponse."
 				break
 			default:
 //log.trace "${device.label}_parse_${respMethod}:  IGNORED."
 				break
 		}
 	} catch (Exception e) {
-//log.error "${device.label}_parse:  Received message is unreadable.  Method:  ${description}"
+log.error "${device.label}_parse:  parseLanMesage failed.  Message:  ${description}"
 	}
 }
 
@@ -1757,7 +1786,7 @@ def nextMsgResponse(resp) {
 	*/
 	def response = new XmlSlurper().parseText(resp.body)
 	def respMethod = response.method
-//log.debug "${device.label}_nextMsgResponse_${respMethod}:  Forwarded to generalResponse."
+log.trace "${device.label}_nextMsgResponse_${respMethod}:  Forwarded to generalResponse."
 	generalResponse(resp)
 }
 
