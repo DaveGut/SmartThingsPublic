@@ -28,6 +28,10 @@ TP-Link devices; primarily various users on GitHub.com.
 2018-02-17	Updated Energy Monitor Functions
 	a.	Allowed for full month collection in previous month
 	b.	Cleaned-up algorithm to use Groovy date.
+2018-02-19	Completed Energy Monitor tuning
+	a.  Fixed March 1, 2 issue where data would not be
+		captured
+	b.	Update remaining code.
 	===== Bulb Identifier.  DO NOT EDIT ====================*/
 	//def deviceType = "SoftWhite Bulb"	//	Soft White
 	//def deviceType = "TunableWhite Bulb"	//	ColorTemp
@@ -388,13 +392,25 @@ def getEnergyStats() {
 }
 
 def getPrevMonth() {
-//	If all of the data is in this month, do not request previous month.
-//	This will occur when the current month is 31 days.
+	def prevMonth = state.monthStart
 	if (state.monthToday == state.monthStart) {
+		//	If all of the data is in this month, do not request previous month.
+		//	This will occur when the current month is 31 days.
 		return
-	} else {
-		sendCmdtoServer("""{"${state.emeterText}":{"get_daystat":{"month": ${state.monthStart}, "year": ${state.yearStart}}}}""", "emeterCmd", "engrStatsResponse")
+	} else if (state.monthToday - 2 == state.monthStart) {
+		//	If the start month is 2 less than current, we must handle
+		//	the data to get a third month - January.
+		state.handleFeb = "yes"
+		prevMonth = prevMonth + 1
+		runIn(4, getJan)
 	}
+	sendCmdtoServer("""{"${state.emeterText}":{"get_daystat":{"month": ${prevMonth}, "year": ${state.yearStart}}}}""", "emeterCmd", "engrStatsResponse")
+}
+
+def getJan() {
+//	Gets January data on March 1 and 2.  Only accessed if current month = 3
+//	and start month = 1
+	sendCmdtoServer("""{"${state.emeterText}":{"get_daystat":{"month": ${state.monthStart}, "year": ${state.yearStart}}}}""", "emeterCmd", "engrStatsResponse")
 }
 
 def engrStatsResponse(cmdResponse) {
@@ -413,7 +429,9 @@ def engrStatsResponse(cmdResponse) {
 	def wkTotEnergy = state.wkTotEnergy
 	def monTotDays = state.monTotDays
 	def wkTotDays = state.wkTotDays
-	if (dayList[0].month == state.monthToday) {
+    def startDay = state.dayStart
+	def dataMonth = dayList[0].month
+	if (dataMonth == state.monthToday) {
 		for (int i = 0; i < dayList.size(); i++) {
 			def energyData = dayList[i]
 			monTotEnergy += energyData."${state.energyScale}"
@@ -429,10 +447,32 @@ def engrStatsResponse(cmdResponse) {
 				wkTotDays -= 1
 			}
 		}
+	} else if (state.handleFeb == "yes" && dataMonth == 2) {
+    	startDay = 1
+		for (int i = 0; i < dayList.size(); i++) {
+			def energyData = dayList[i]
+			if (energyData.day >= startDay) {
+				monTotEnergy += energyData."${state.energyScale}"
+				monTotDays += 1
+			}
+			if (energyData.day >= state.weekStart && state.dayToday < 8) {
+				wkTotEnergy += energyData."${state.energyScale}"
+				wkTotDays += 1
+			}
+		}
+	} else if (state.handleFeb == "yes" && dataMonth == 1) {
+		for (int i = 0; i < dayList.size(); i++) {
+			def energyData = dayList[i]
+			if (energyData.day >= startDay) {
+				monTotEnergy += energyData."${state.energyScale}"
+				monTotDays += 1
+			}
+			state.handleFeb = ""
+		}
 	} else {
 		for (int i = 0; i < dayList.size(); i++) {
 			def energyData = dayList[i]
-			if (energyData.day >= state.dayStart) {
+			if (energyData.day >= startDay) {
 				monTotEnergy += energyData."${state.energyScale}"
 				monTotDays += 1
 			}
@@ -447,7 +487,12 @@ def engrStatsResponse(cmdResponse) {
 	state.wkTotEnergy = wkTotEnergy
 	state.wkTotDays = wkTotDays
 	log.info "$device.name $device.label: Update 7 and 30 day energy consumption statistics"
-	def monAvgEnergy = monTotEnergy/monTotDays
+    if (monTotDays == 0) {
+    	//	Aviod divide by zero on 1st of month
+    	monTotDays = 1
+        wkTotDays = 1 
+	}
+	def monAvgEnergy =monTotEnergy/monTotDays
 	def wkAvgEnergy = wkTotEnergy/wkTotDays
 	if (state.powerScale == "power_mw") {
 		monAvgEnergy = Math.round(monAvgEnergy/10)/100
@@ -471,14 +516,14 @@ def setCurrentDate() {
 	def df = new java.text.SimpleDateFormat("ddMMyyyy")
 	df.setTimeZone(location.timeZone)
 	def curDay = df.format(new Date())
+	def dayOne = df.format(new Date()-30)
+	def wkStart = df.format(new Date()-7)
 	state.dayToday = curDay.substring(0,2).toInteger()
 	state.monthToday = curDay.substring(2,4).toInteger()
 	state.yearToday = curDay.substring(4,8).toInteger()
-	def dayOne = df.format(new Date()-30)
 	state.dayStart = dayOne.substring(0,2).toInteger()
 	state.monthStart = dayOne.substring(2,4).toInteger()
 	state.yearStart = dayOne.substring(4,8).toInteger()
-	def wkStart = df.format(new Date()-7)
 	state.weekStart = wkStart.substring(0,2).toInteger()
 }
 
