@@ -152,11 +152,12 @@ def subscribeHandler(evt) {
 	def description = evt.description
 	def hub = evt?.hubId
 	def parsedEvent = parseLanMessage(description)
+log.debug parsedEvent
 	def ip = convertHexToIP(parsedEvent.networkAddress)
-	 def port = convertHexToInt(parsedEvent.deviceAddress)
-	 def ssdpUSN = parsedEvent.ssdpUSN
-	 def msg = "${ip}:${port} fired ssdpUSN: ${parsedEvent}"
-	 sendEvent(name: "subscriptionReturn", value: "${msg}")
+	def port = convertHexToInt(parsedEvent.deviceAddress)
+	def ssdpUSN = parsedEvent.ssdpUSN
+	def msg = "${ip}:${port} fired ssdpUSN: ${parsedEvent}"
+	sendEvent(name: "subscriptionReturn", value: "${msg}")
 }
 
 void ssdpDiscover() {
@@ -210,9 +211,9 @@ void addSpeakerModel() {
 void addSpeakerModelHandler(physicalgraph.device.HubResponse hubResponse) {
 	def respBody = hubResponse.xml
 	def model = respBody?.device?.modelName?.text()
-	 def uuid = respBody?.device?.UDN?.text()
-	 uuid = uuid.replaceAll(/uuid:/, "")
-	 def speakers = state.speakers
+	def uuid = respBody?.device?.UDN?.text()
+	uuid = uuid.replaceAll(/uuid:/, "")
+	def speakers = state.speakers
 	def speaker = speakers.find {it?.key?.contains("${uuid}")}
 	if (speaker) {
  		speaker.value << [model: model]
@@ -278,7 +279,7 @@ def requestSubSpeakerData(mainSpkMac, mainSpkDNI) {
 }
 
 def sendDataToMain(mainSpkDNI, speakerData) {
-log.trace "sendDataToMain, mainSpkDNI = ${mainSpkDNI}, speakerData = ${speakerData}"
+	log.info "sendDataToMain, mainSpkDNI = ${mainSpkDNI}, speakerData = ${speakerData}"
 	def child = getChildDevice(mainSpkDNI)
 	child.rxDataFromSM(speakerData)
 }
