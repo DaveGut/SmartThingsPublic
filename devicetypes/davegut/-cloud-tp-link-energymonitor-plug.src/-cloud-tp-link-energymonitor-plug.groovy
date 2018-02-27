@@ -115,10 +115,11 @@ metadata {
 	}
 
 	def rates = [:]
+	rates << ["1" : "Refresh every minutes (Not Recommended)"]
 	rates << ["5" : "Refresh every 5 minutes"]
-	rates << ["10" : "Refresh every 10 minutes"]	
+	rates << ["10" : "Refresh every 10 minutes"]
 	rates << ["15" : "Refresh every 15 minutes"]
-	rates << ["30" : "Refresh every 30 minutes"]
+	rates << ["30" : "Refresh every 30 minutes (Recommended)"]
 
 	preferences {
 		if (installType == "Hub") {
@@ -146,6 +147,10 @@ def update() {
 	state.getTimeText = "time"
 	unschedule()
 	switch(refreshRate) {
+		case "1":
+			runEvery1Minute(refresh)
+			log.info "Refresh Scheduled for every minute"
+			break
 		case "5":
 			runEvery5Minutes(refresh)
 			log.info "Refresh Scheduled for every 5 minutes"
@@ -188,6 +193,11 @@ def off() {
 	runIn(2, refresh)
 }
 
+def getSystemInfo() {
+	sendCmdtoServer('{"system":{"get_sysinfo":{}}}', "deviceCommand", "commandResponse")
+    runIn(2, getPower)
+}
+
 def poll() {
 	sendCmdtoServer('{"system":{"get_sysinfo":{}}}', "deviceCommand", "commandResponse")
 }
@@ -195,6 +205,7 @@ def poll() {
 def refresh(){
 	sendCmdtoServer('{"system":{"get_sysinfo":{}}}', "deviceCommand", "commandResponse")
 	runIn(2, getPower)
+    runIn(7, getConsumption)
 }
 
 def commandResponse(cmdResponse){
@@ -215,7 +226,6 @@ def commandResponse(cmdResponse){
 //	===== Get Current Energy Data =====
 def getPower(){
 	sendCmdtoServer("""{"${state.emeterText}":{"get_realtime":{}}}""", "deviceCommand", "energyMeterResponse")
-	runIn(5, getConsumption)
 }
 
 def energyMeterResponse(cmdResponse) {
@@ -282,10 +292,7 @@ def getPrevMonth() {
 		prevMonth = prevMonth + 1
 		runIn(4, getJan)
 	}
-//	sendCmdtoServer("""{"${state.emeterText}":{"get_daystat":{"month": ${prevMonth}, "year": ${state.yearStart}}}}""", "emeterCmd", "engrStatsResponse")
-//	===== SIMULATOR COMMANDS ================================================
-sendCmdtoServer("""{"${state.emeterText}":{"get_daystat":{"month": ${prevMonth}, "year": ${state.yearStart}}}}""", "emeterCmd", "UseJanWatts")
-//	===== SIMULATOR COMMANDS ================================================
+	sendCmdtoServer("""{"${state.emeterText}":{"get_daystat":{"month": ${prevMonth}, "year": ${state.yearStart}}}}""", "emeterCmd", "UseJanWatts")
 }
 
 def getJan() {
