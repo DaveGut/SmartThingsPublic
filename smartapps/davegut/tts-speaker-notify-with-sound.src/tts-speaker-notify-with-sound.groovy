@@ -36,7 +36,7 @@ definition(
 )
 
 preferences {
-	page(name: "mainPage", title: "Play a message on your Speaker when something happens", install: true, uninstall: true)
+	page(name: "mainPage", title: "Play a message on your SAMSUNG AUDIO SPEAKER when something happens", install: true, uninstall: true)
 	page(name: "timeIntervalInput", title: "Only during a certain time") {
 		section {
 			input "starting", "time", title: "Starting", required: false
