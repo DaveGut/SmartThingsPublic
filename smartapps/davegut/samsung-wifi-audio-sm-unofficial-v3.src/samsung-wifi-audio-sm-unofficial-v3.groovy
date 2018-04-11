@@ -1,5 +1,5 @@
 /*
-Samsung WiFi Speaker (unofficial) Connect Service Manager - V2
+Samsung WiFi Audio (unofficial) Service Manager - V3
 Copyright 2018 Dave Gutheinz 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this 
 file except in compliance with the License. You may obtain a copy of the License at:
@@ -15,6 +15,7 @@ on the Samsung WiFi Speakers; primarily various users on GitHub.com.
 12-28-17	Tested with device handlers for work-around.
 01-09-18	Added TTS pass through commands
 01-14-18	Renamed file for release of V2.  Release V2.
+04-11-18	Updated to support TTS with user-selectable Voices.
 */
 
 definition(
@@ -275,7 +276,7 @@ def addSpeakers() {
 			d = getChildDevices()?.find { it.deviceNetworkId == selectedSpeaker.value.dni }
 		}
 		if (!d) {
-			addChildDevice("davegut", "Samsung WiFi Speaker (Unofficial-V2)", selectedSpeaker.value?.dni, hubId, [
+			addChildDevice("davegut", "Samsung WiFi Audio (Unofficial-V3)", selectedSpeaker.value?.dni, hubId, [
 				"label": "${selectedSpeaker.value.name}",
 				"name": "${selectedSpeaker.value.model}",
 				"data": [
