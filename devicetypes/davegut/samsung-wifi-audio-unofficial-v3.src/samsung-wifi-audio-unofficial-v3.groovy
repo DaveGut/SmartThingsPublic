@@ -1,13 +1,5 @@
 /*
 Samsung WiFi Audio Device Handler (Unofficial) V2
-
-To enable Group Functions, remove the "//" from the second line below:
-======================================================================
-====================================================================*/
-def groupSup = "no"
-groupSup = "yes"
-/*====================================================================
-======================================================================
 Copyright 2018 Dave Gutheinz
 
 Licensed under the Apache License, Version 2.0 (the "License"); you 
@@ -77,7 +69,12 @@ d.  Notes:
 	Command
 		playTrack(uri, level)
 ===============================================================
-*/
+=====***** Special Function Enable / Disable *****=============
+Group:	in the "groupSup" line below, use "yes" to enable group
+		functions.  "no" disables these functions and tiles.
+=============================================================*/
+def groupSup = "yes"
+/*===========================================================*/
 
 metadata {
 	definition (name: "Samsung WiFi Audio (Unofficial-V3)", namespace: "davegut", author: "David Gutheinz") {
@@ -90,7 +87,6 @@ metadata {
 		capability "Audio Notification"
 //	===== Custom Commands and Attributes =======
 		//	----- SPEAKER / PLAYER CONTROL -----
-        command "updateDisplay"
 		command "toggleRepeat"
 		attribute "repeat", "string"
 		command "toggleShuffle"
@@ -99,6 +95,7 @@ metadata {
 		attribute "eqPreset", "string"
 		command "setInputSource"
 		attribute "inputSource", "string"
+        command "updateDisplay"
 		//	----- CHANNEL PRESET -----
 		command "preset_1"
 		attribute "preset_1", "string"
@@ -148,6 +145,9 @@ metadata {
 		command "playTextAndRestore", ["string","number"]
 		command "playTextAsVoiceAndResume", ["string","number","string"]
 		command "playTextAsVoiceAndRestore", ["string","number","string"]
+        //	----- test Attributes -----
+        attribute "ranRefresh", "string"
+        attribute "ranUpdateDisplay", "string"
 	}
 
 	tiles(scale: 2) {
@@ -209,8 +209,8 @@ metadata {
 			state 'inputSource', label:'${currentValue}', action:'setInputSource'
 		}
 
-		standardTile('updateDisplay', 'updateDisplay', width: 1, height: 1,  decoration: 'flat') {
-			state ('default', label: 'Update Display', action: 'updateDisplay')
+		standardTile('refresh', 'refresh', width: 1, height: 1,  decoration: 'flat') {
+			state ('default', label: 'Update Display', action: 'refresh')
 		}
 
 		standardTile('eqPreset', 'eqPreset', decoration: 'flat', width: 1, height: 1) {
@@ -347,13 +347,13 @@ metadata {
 	//	===== Set "groups" to "yes" to display group tiles =====
 	//	========================================================
     if (groupSup == "yes") {
-		details(["main", "switch", "source", "updateDisplay","eqPreset", "shuffle", "repeat",
+		details(["main", "switch", "source", "refresh","eqPreset", "shuffle", "repeat",
 				'preset_1', 'preset_2', 'preset_3', 'preset_4', 'preset_5', 'preset_6', 'preset_7',
 				'preset_8', 'deletePreset', "currentError", 'selGroupTitle','groupPS_1', 'groupPS_2',
 				'groupPS_3','mastVolLabel', 'grpSpkToggle', "mastVol", "selSpkVol", "selSpkEqLev"
 		])
 	} else {
-		details(["main", "switch", "source", "updateDisplay","eqPreset", "shuffle", "repeat",
+		details(["main", "switch", "source", "refresh","eqPreset", "shuffle", "repeat",
 				'preset_1', 'preset_2', 'preset_3', 'preset_4', 'preset_5', 'preset_6', 'preset_7',
 				'preset_8', 'deletePreset', "currentError"
 		])
@@ -456,19 +456,19 @@ def installed() {
 	getSources()
     connectToSpeaker()
 	Set7bandEQMode(0)
-	realUpdate()
+//	runEvery3Hours(connectToSpeaker)
+	updated()
 }
 
 def updated() {
-	//	Normally runs twice.  This will cancel on run.
-	runIn(1, realUpdate)
+	runIn(3, update)
 }
 
-def realUpdate() {
-	refresh()
-	unschedule()
+def update() {
+	runEvery5Minutes(refresh)
 	if (rearLevel){
 		SetRearLevel(rearLevel)
+		log.info "${device.label}_updated:  Rear speaker level is ${rearLevel}"
 	}
 	if (!ttsLang) {
 		state.ttsLanguage = "en-us"
@@ -480,15 +480,13 @@ def realUpdate() {
 	} else {
 		state.ttsVoice = voice
 	}
-	runEvery1Hour(connectToSpeaker)
-	runEvery1Minute(refresh)
-    updateDisplay()
-	setTestValues()
-}
-
-def setTestValues(){
-//	Utilities used during test for various reasons.
-	log.debug state
+    def swType = getDataValue("swType")
+    if (swType == "SoundPlus") {
+		log.info "${device.label}_updated:  TTS Language is ${ttsLang}"
+    } else {
+		log.info "${device.label}_updated:  TTS Voice is ${voice}"
+		log.info "${device.label}_updated:  TTS Surrogate Speaker is ${ttsSpeaker}"
+    }
 }
 
 def getSources() {
@@ -515,18 +513,13 @@ def getSources() {
 				break
 	}
 	state.sources = sources
-    traceLogging("error", "${device.label} sources set to ${state.sources}")
 }
 
 def connectToSpeaker() {
 	def hub = location.hubs[0]
     def hubId = hub.id
     def hubIpPort = "${hub.localIP}:${hub.localSrvPortTCP}"
-    traceLogging("error", "${device.label} Connecting to hub ${hubId} at ${hubIpPort}")
-	sendCmd("UIC?cmd=%3Cname%3ESetIpInfo%3Cname%3E" + 
-			"%3Cp%20type=%22str%22%20name=%22uuid%22%20val=%22${hubId}%22/%3E" +
-			"%3Cp%20type=%22str%22%20name=%22ip%22%20val=%22${hubIpPort}%22/%3E",
-			"generalResponse")
+    SetIpInfo(hubId, hubIpPort)
 }
 
 //	====================================
@@ -534,16 +527,20 @@ def connectToSpeaker() {
 //	====================================
 def on() {
 	SetPowerStatus("1")
-	sendEvent(name: "switch", value: "on")
     play()
-    updateDisplay()
+	sendEvent(name: "switch", value: "on")
+	GetFunc()
+	GetMute()
+	GetVolume()
+	runIn(5, setTrackDescription)
 }
 
 def off() {
 	stop()
 	SetPowerStatus("0")
 	sendEvent(name: "switch", value: "off")
-	sendEvent(name: "trackDescription", value: "Player is Stopped")
+	sendEvent(name: "trackDescription", value: "OFF")
+    getPlayStatus()
 }
 
 def setInputSource() {
@@ -557,9 +554,8 @@ def setInputSource() {
 	}
 	state.currentSourceNo = sourceNo
 	sendEvent(name: "inputSource", value: sources[sourceNo])
-	log.info "${device.label}:  Source changed to ${sources[sourceNo]}"
 	SetFunc(sources[sourceNo])
-    runIn(1, setTrackDescription)
+    runIn(2, setTrackDescription)
 }
 
 def setLevel(level) {
@@ -600,7 +596,7 @@ def getPwr() {
     	if (device.currentValue("status") == "playing") {
         	sendEvent(name: "switch", value: "on")
         } else {
-			sendEvent(name: "switch", value: device.currentValue("switch"))
+			sendEvent(name: "switch", value: "off")
         }
 	}
 }
@@ -619,7 +615,7 @@ def play() {
 		default:
 		 	return
 	}
-	runIn(5, setTrackDescription)
+	runIn(5, getPlayTime)
 }
 
 def pause() {
@@ -633,7 +629,7 @@ def pause() {
 		default:
 		 	return
 	}
-	unschedule(setTrackDesciption)
+	unschedule("setTrackDesciption")
 }
 
 def stop() {
@@ -647,7 +643,7 @@ def stop() {
 		default:
 		 	return
 	}
-	unschedule(setTrackDesciption)
+	unschedule("setTrackDesciption")
 }
 
 def getPlayStatus() {
@@ -678,14 +674,14 @@ def previousTrack() {
 			break
 		case "cp":
 			SetPreviousTrack()
-			runIn(2, SetPreviousTrack)
+			runIn(1, SetPreviousTrack)
 			break
 		default:
-			log.info "${device.label}_previousChange: Previous track not supported."
-			setErrorMsg("trackChange: Previous track not supported.")
+			log.info "${device.label}_previousTrack: Previous Track does not work for this player"
+			setErrorMsg("previousTrack: Previous Track does not work for this player")
 			return
 	}
-	runIn(4, setTrackDescription)
+	runIn(5, setTrackDescription)
 }
 
 def nextTrack() {
@@ -706,32 +702,29 @@ def nextTrack() {
 			SetSkipCurrentTrack()
 			break
 		default:
-			log.info "${device.label}_trackChange: Previous/Next not supported."
-			setErrorMsg("trackChange: Previous/Next not supported.")
+			log.info "${device.label}_nextTrack: Next Track does not work for this player"
+			setErrorMsg("nextTrack: Next Track does not work for this player")
 			return
 	}
-	runIn(4, setTrackDescription)
+	runIn(5, setTrackDescription)
 }
 
 def toggleShuffle() {
-	def submode = state.subMode
 	def shuffleMode = ""
-	 switch(submode) {
+	switch(state.subMode) {
 		case "dlna":
 			if (device.currentValue("shuffle") == "0" || device.currentValue("shuffle") == "inactive") {
-				shuffleMode = "on"
+				SetShuffleMode("on")
 			} else {
-				shuffleMode = "off"
+				SetShuffleMode("off")
 			}
-			SetShuffleMode(shuffleMode)
 			break
 		case "cp":
 			if (device.currentValue("shuffle") == "0" || device.currentValue("shuffle") == "inactive") {
-				shuffleMode = "1"
+				SetToggleShuffle("1")
 			} else {
-				shuffleMode = "0"
+				SetToggleShuffle("0")
 			}
-			SetToggleShuffle(shuffleMode)
 			break
 		default:
 			log.info "${device.label}_toggleShuffle: ShuffleMode not valid for device or mode"
@@ -741,24 +734,21 @@ def toggleShuffle() {
 }
 
 def toggleRepeat() {
-	def submode = state.subMode
 	def repeatMode = ""
-	 switch(submode) {
+	 switch(state.subMode) {
 		case "dlna":
 			if (device.currentValue("repeat") == "0" || device.currentValue("repeat") == "inactive") {
-				repeatMode = "one"
+				uic_SetRepeatMode("one")
 			} else {
-				repeatMode = "off"
+				uic_SetRepeatMode("off")
 			}
-			uic_SetRepeatMode(repeatMode)
 			break
 		case "cp":
 			if (device.currentValue("repeat") == "0" || device.currentValue("repeat") == "inactive") {
-				repeatMode = "1"
+				cpm_SetRepeatMode("1")
 			} else {
-				repeatMode = "0"
+				cpm_SetRepeatMode("0")
 			}
-			cpm_SetRepeatMode(repeatMode)
 			break
 		default:
 			log.info "${device.label}_toggleRepeat: Repeat not valid for device or mode"
@@ -868,7 +858,17 @@ def addPreset(preset, psType) {
 	sendEvent(name: preset, value: "updating")
 	state."${preset}_Data" = [:]
 	if (psType == "content") {
-		GetRadioInfo("getCpDataParse")
+		if (state.subMode == "cp") {
+			GetRadioInfo("getCpDataParse")
+        } else if (state.submode == "wifi") {
+//	To be updated to incorporate DLNA Playback
+        	log.error "${device.label}_addPreset: Presets not currently supported for ${state.subMode}."
+			setErrorMsg("addPreset: Preset for DLNA mode not currently supported.")
+        } else {
+        	log.error "${device.label}_addPreset: Presets not currently supported for ${state.subMode}."
+			setErrorMsg("addPreset: Preset for DLNA mode not currently supported.")
+
+        }
 	} else if (psType == "group") {
 		state.spkType = "main"
 		state.subSpkNo = 0
@@ -897,8 +897,7 @@ def createPreset(player, playerNo, path, title) {
 		title = title.take(29)
 	}
 	sendEvent(name: preset, value: "${title}")
-	log.info "${device.label}_createPreset: Created ${preset} as  ${player} ${title}."
-	runIn(2, setTrackDescription)
+	runIn(5, setTrackDescription)
 }
 
 def deletePreset() {
@@ -913,11 +912,10 @@ def prepareToDeletePS(preset) {
 }
 
 def finishDeletePreset() {
-	unschedule(stopDeletePreset)
+	unschedule("stopDeletePreset")
 	def preset = state.presetToDelete
 	sendEvent(name: "deletePresetState", value: "inactive")
 	state."${preset}_Data" = [:]
-	log.info "${device.label}_finishDeletePreset: Deleted ${preset}."
 	sendEvent(name: preset, value: "vacant")
 }
 
@@ -984,7 +982,6 @@ def startGroup(preset) {
 	sendEvent(name: "groupPsTitle", value: "${groupName}")
 	sendEvent(name: "selSpkName", value: "Toggle Group")
 	runIn(1, refresh)
-	log.info "${device.label}_startGroup: Started speaker group ${groupName}"
 }
 
 def getSubSpeakerData(mainSpkMAC, mainSpkDNI) {
@@ -1005,7 +1002,6 @@ def rxDataFromSM(speakerData) {
 	def groupName = data["groupName"]
 	def preset = state.currentGroupPs
 	if (spksInGroup-1 == subSpkNo) {
-		log.info "${device.name}_rxDataFromSM:  ${preset} created."
 		sendEvent(name: preset, value: groupName)
 		state.activeGroupPs = preset
 		state.groupName = groupName
@@ -1013,7 +1009,7 @@ def rxDataFromSM(speakerData) {
 		sendEvent(name: "groupPsTitle", value: "${groupName}")
 		sendEvent(name: "selSpkName", value: "Toggle Group")
 		runIn(2, GetAcmMode)
-		runIn(3, refresh)
+		runIn(4, refresh)
 	}
 }
 
@@ -1023,7 +1019,7 @@ def armGroupPsOff() {
 }
 
 def groupPsOff() {
-	unschedule(unArmGroupPsOff)
+	unschedule("unArmGroupPsOff")
 	def preset = state.activeGroupPs
 	def groupData = state."${preset}_Data"
 	def groupName = groupData["groupName"]
@@ -1048,7 +1044,6 @@ def groupPsOff() {
 	sendEvent(name: "selSpkEqLevel", value: 0)
 	state.activeGroupPs = null
 	runIn(2, refresh)
-	log.info "${device.label}_groupPsOff: Ungrouped group ${groupName}"
 }
 
 def unArmGroupPsOff() {
@@ -1060,7 +1055,7 @@ def unArmGroupPsOff() {
 
 def setGroupMasterVolume(masterVolume) {
 	if (state.activeGroupPs == null) {
-		log.error "${device.label}_setGroupMasterVolume: Function not available, no Group active."
+		log.info "${device.label}_setGroupMasterVolume: Function not available, no Group active."
 		setErrorMsg("setGroupMasterVolume: Function not available, no Group active.")
 		return
  	}
@@ -1078,7 +1073,6 @@ def setGroupMasterVolume(masterVolume) {
 		def subSpkDNI = spkData["spkDNI"]
 		parent.sendCmdToSpeaker(subSpkDNI, "setSubSpkVolume", mastVolIncrement, "generalResponse")
 	}
-	traceLogging("debug", "${device.label}_setGroupMasterVolume: set Master Volume = ${masterVolume}")
 }
 
 def setSubSpkVolume(mastVolIncrement) {
@@ -1086,7 +1080,6 @@ def setSubSpkVolume(mastVolIncrement) {
 	def newLevel = oldLevel + mastVolIncrement
 	if (newLevel < 10) {newLevel = 10}
 	setLevel(newLevel)
-	traceLogging("debug", "${device.label}_setSubSpkVolume: SubSpeaker Volume = ${newLevel}")
 }
 
 def toggleGroupSpk() {
@@ -1118,7 +1111,6 @@ def toggleGroupSpk() {
 	sendEvent(name: "selSpkName", value: selSpkName)
 	sendEvent(name: "selSpkVol", value: selSpkVol)
 	sendEvent(name: "selSpkEqLevel", value: selSpkEqLevel)
-	traceLogging("debug", "${device.label}_toggleGroupSpk: Speaker Name:  ${selSpkName}")
 }
 
 def getSpkVol() {
@@ -1135,7 +1127,7 @@ def setSelSpkVol(selSpkVol) {
 	def selSpkId = state.selSpkId
 	def selSpkDNI = state.selSpkDNI
 	if (state.activeGroupPs == null) {
-		log.error "${device.label}_setSelSpkVol: Function not available, no Group active."
+		log.info "${device.label}_setSelSpkVol: Function not available, no Group active."
 		setErrorMsg("setSelSpkVol: Function not available, no Group active.")
 		return
  	} else if(selSpkId == "main") {
@@ -1144,12 +1136,11 @@ def setSelSpkVol(selSpkVol) {
 		parent.sendCmdToSpeaker(selSpkDNI, "SetVolume", selSpkVol.toInteger(), "generalResponse")
 	}
 	sendEvent(name: "selSpkVol", value: selSpkVol)
-	traceLogging("debug", "${device.label}_setSelSpkVol: selSpeaker Volume:  ${selSpkVol}")
 }
 
 def setSelSpkEqLevel(selSpkEqLevel) {
 	if (state.activeGroupPs == null) {
-		log.error "${device.label}_setSelSpkEqLevel: Function not available, no Group active."
+		log.info "${device.label}_setSelSpkEqLevel: Function not available, no Group active."
 		setErrorMsg("setSelSpkEqLevel: Function not available, no Group active.")
 		return
  	}
@@ -1161,7 +1152,6 @@ def setSelSpkEqLevel(selSpkEqLevel) {
 		parent.sendCmdToSpeaker(selSpkDNI, "SetChVolMultich", selSpkEqLevel, "generalResponse")
 	}
 	sendEvent(name: "selSpkEqLevel", value: selSpkEqLevel)
-	traceLogging("debug", "${device.label}_setSelSpkEqLevel: selSpeaker eqLevel:  ${selSpkEqLevel}")
 }
 
 def setSpkType(type) {
@@ -1171,15 +1161,8 @@ def setSpkType(type) {
 //	==============================================
 //	===== Play Content from players and DLNA =====
 //	==============================================
-//	################ CHECK
 def playContent(preset) {
-	//	Future Code.
-	/*	TO DO
-		1.  Change current preset data into single database for each preset
-			with type (cp, dlna, url), player (currently cp), path, and title.
-		2.	Add play director to look at type and then direct to appropriate
-			play method (below).
-	*/
+	sendEvent(name: "switch", value: "on", isStateChange: true)
 	def playerState = state."${preset}_Data"
 	state.restore_Data = playerState
 	def contentType = playerState.type
@@ -1187,19 +1170,14 @@ def playContent(preset) {
 	def title = playerState.title
 	def path = playerState.path
 	def playerNo = playerState.playerNo
-	state.currentPlayer = "${player}"		//	look to remove
-	sendEvent(name: "switch", value: "1")
-	//If (contentType == "cp") {
-		playCpContent(player, playerNo, path, title)
-	//} else if (contentType == "dlna") {
-	//	playDlnaContent()
-	//}
+	state.currentPlayer = "${player}"
+	playCpContent(player, playerNo, path, title)
 }
 
-//	################ CHECK
 def playCpContent(player, playerNo, path, title) {
-	traceLogging("debug", "${device.label}_playCpContent: playing CP content ${player} ${title} ${path}.")
-	pause()
+	log.info "${device.label}_playCpContent: playing CP content ${player} ${title} ${path}."
+	sendEvent(name: "inputSource", value: "wifi")
+	state.subMode = "cp"
  	switch(player) {
 		case "Amazon":
 			SetSelectAmazonCp("generalResponse")
@@ -1209,31 +1187,28 @@ def playCpContent(player, playerNo, path, title) {
 			SetCpService(playerNo, "generalResponse")
 			break
 		case "TuneIn":
-			//	TuneIn is very slow in returning data.  Therefore different runIn.
 			SetSelectRadio("generalResponse")
 			PlayById(player, path, "generalResponse")
-			runIn(5, play)
+			cpm_SetPlaybackControl("play")
+			runIn(10, play)
  			break
 		default:
 			SetCpService(playerNo, "generalResponse")
 			PlayById(player, path, "generalResponse")
 			cpm_SetPlaybackControl("play")
-			runIn(5, play)
+			runIn(10, play)
 			break
 	}
-}
-
-def playDlnaContent() {
-//	reserved future function
+	runIn(15, updateDisplay)
 }
 
 //	=======================================
 //	===== Content Information Methods =====
 //	=======================================
 def setTrackDescription() {
+	unschedule("setTrackDesciption")
 	def submode = state.subMode
 	def source = device.currentValue("inputSource")
-	unschedule(setTrackDesciption)
 	if (source != "wifi") {
 		sendEvent(name: "trackDescription", value: source)
 		sendEvent(name: "shuffle", value: "inactive")
@@ -1247,35 +1222,27 @@ def setTrackDescription() {
 				GetRadioInfo("generalResponse")
 				break
 			case "device":
-				sendEvent(name: "trackDescription", value: "WiFi (device)")
-				log.debug "${device.label}_setTrackDescription: Updated trackDesciption to ${device.currentValue("WiFi (device)")}"
-				GetAcmMode()
+				sendEvent(name: "trackDescription", value: "WiFi ${submode}")
+				log.info "${device.label}_setTrackDescription: Updated trackDesciption to WiFi ${submode}"
                 state.updateTrackDescription = "no"
 				sendEvent(name: "shuffle", value: "inactive")
 				sendEvent(name: "repeat", value: "inactive")
-				break
-			case "subdevice":
-				sendEvent(name: "trackDescription", value: "WiFi (subdevice)")
-				log.debug "${device.label}_setTrackDescription: Updated trackDesciption to ${device.currentValue("WiFi (subdevice)")}"
-                state.updateTrackDescription = "no"
-				sendEvent(name: "shuffle", value: "inactive")
-				sendEvent(name: "repeat", value: "inactive")
+				GetAcmMode()	//	Determine what data is here and how to parse and use.
 				break
 			default:
 				sendEvent(name: "trackDescription", value: "WiFi (${submode})")
-				log.debug "${device.label}_setTrackDescription: Updated trackDesciption to ${device.currentValue("WiFi (${submode})")}"
+				log.info "${device.label}_setTrackDescription: Updated trackDesciption to WiFi ${submode}"
                 state.updateTrackDescription = "no"
 				sendEvent(name: "shuffle", value: "inactive")
 				sendEvent(name: "repeat", value: "inactive")
 		}
-		runIn(10, getPlayTime)
 	}
 }
 
 def getPlayTime() {
 	def update = state.updateTrackDescription
 	if(update == "no") {
-		traceLogging("debug", "${device.label}_getPlayTime: schedSetTrackDescription turned off")
+		log.info "${device.label}_getPlayTime: schedSetTrackDescription turned off"
 		return
 	} else {
 		GetCurrentPlayTime()
@@ -1284,23 +1251,22 @@ def getPlayTime() {
 
 def schedSetTrackDescription(playtime) {
 	def nextUpdate
-	if (state.trackLength == null || state.trackLength < playtime) {
-		nextUpdate = 600
+	if (state.trackLength == null || state.trackLength == 0) {
+    	state.updateTrackDescription = "no"
+		log.info "${device.label}_schedSetTrackDescription: Track Description will not update."
+        return
 	} else {
 		nextUpdate = state.trackLength - playtime + 3
 	}
 	runIn(nextUpdate, setTrackDescription)
-	log.debug "${device.label}_schedSetTrackDescription: Track Description will update in ${nextUpdate} seconds"
+	log.info "${device.label}_schedSetTrackDescription: Track Description will update in ${nextUpdate} seconds"
 }
 
 //	======================================
 //	===== Play external URI Commands =====
 //	======================================
 def playTextAsVoiceAndRestore(text, volume=null, voice=null) {
-	log.info "${device.label}_playTextAndRestore($text, $volume, $voice)."
-//	if (!voice) {
-//		voice = state.ttsVoice
-//	}
+	log.info "${device.label}_playTextAsVoiceAndRestore(${text}, ${volume}, ${voice})."
 	state.resumePlay = "no"
 	playTextAsVoiceAndResume(text, volume, voice)
 }
@@ -1329,16 +1295,14 @@ def playTextAsVoiceAndResume(text, volume=null, voice=null) {
 	playTrackAndResume(soundUri, (duration as Integer) + 1, volume)
 }
 
-//	################ CHECK
 def playTextAndRestore(text, volume=null) {
-	log.info "${device.label}_playTextAndRestore($text, $volume)."
+	log.info "${device.label}_playTextAndRestore(${text}, ${volume})."
 	state.resumePlay = "no"
 	playTextAndResume(text, volume)
 }
 
-//	################ CHECK
 def playTextAndResume(text, volume=null) {
-	log.info "${device.label}_playTextAndResume($text, $volume)."
+	log.info "${device.label}_playTextAndResume(${text}, ${volume})."
 	def soundUri = ""
 	def duration = 0
     def swType = getDataValue("swType")
@@ -1358,17 +1322,16 @@ def playTextAndResume(text, volume=null) {
 	playTrackAndResume(soundUri, (duration as Integer) + 1, volume)
 }
 
-//	################ CHECK
 def playTrack(String uri, volume) {
 	setErrorMsg("_playTrack: Not Supported.")
 	log.warn "${device.label}_playTrack: Not Supported."
 }
 
 def playTrackAndRestore(uri, duration, volume=null) {
-	traceLogging("debug", "${device.label}_playTrackAndRetore($uri, $duration, $volume).")
+	traceLogging("debug", "${device.label}_playTrackAndRetore(${uri}, ${duration}, ${volume}).")
 	if (state.spkType == "sub") {
 		//	If a subspeaker in group, send to the Main speaker.
-		traceLogging("debug", "${device.label}_playTrackAndRetore: Subspeaker sending TTS to Main.")
+		log.info "${device.label}_playTrackAndRetore: Subspeaker sending TTS to Main."
 		parent.sendCmdToMain(state.mainSpkDNI, "playTrackAndRestore", uri, duration, volume, "")
 	} else {
 		state.resumePlay = "no"
@@ -1377,7 +1340,7 @@ def playTrackAndRestore(uri, duration, volume=null) {
 }
 
 def playTrackAndResume(uri, duration, volume=null) {
-	traceLogging("debug", "${device.label}_playTrackAndResume($uri, $duration, $volume).")
+	log.debug "${device.label}_playTrackAndResume(${uri}, ${duration}, ${volume})."
 	on()
 	def inputSource = device.currentValue("inputSource")
     def swType = getDataValue("swType")
@@ -1388,7 +1351,7 @@ def playTrackAndResume(uri, duration, volume=null) {
 	}
 	if (state.spkType == "sub") {
 		//	If a subspeaker in group, send to the Main speaker.
-		traceLogging("debug", "${device.label}_playTrackAndResume: Subspeaker sending TTS to Main.")
+		log.debug "${device.label}_playTrackAndResume: Subspeaker sending TTS to Main."
 		parent.sendCmdToMain(state.mainSpkDNI, "playTrackAndResume", uri, duration, volume, "")
 	} else if (swType == "SoundPlus") {
 		//	SoundPlus Soundbar only.  Play using UPNP commands.
@@ -1412,10 +1375,10 @@ def playTrackAndResume(uri, duration, volume=null) {
 	} else {
 		//	Speakers and other Soundbars - Play on surrogate LAN SAMSUNG SPEAKER
 		if (ttsSpeaker == null) {
-			traceLogging("debug", "${device.label}_playTrackAndResume: Surrogate Speaker not selected.")
+			log.info "${device.label}_playTrackAndResume: Surrogate Speaker not selected."
 			setErrorMsg("playTrackAndResume: Surrogate Speaker not selected.")
 		} else {
-			traceLogging("debug", "${device.label}_playTrackAndResume: playing TTS Sound on surrogate speaker.")
+			log.info "${device.label}_playTrackAndResume: playing TTS Sound on surrogate speaker."
 			pause()
 			if (state.resumePlay == "yes") {
 				//	Only resume play of original playTrackAndResume
@@ -1432,18 +1395,16 @@ def playTrackAndResume(uri, duration, volume=null) {
 
 def resumeHwPlayer(data) {
 	//	Soundbar only.  Restore player after playing url.
-	traceLogging("debug", "${device.label}_resumeHwPlayer: Restoring playback using ${state.restore_Data}")
+	log.debug "${device.label}_resumeHwPlayer: Restoring playback using ${state.restore_Data}"
 	setLevel(data.level)
 	if (data.inputsource == "wifi") {
 		if (data.submode == "cp") {
 			playContent("restore")
 		} else if (data.submode == "dlna") {
-			//	Default, untested action.
 			uic_SetPlaybackControl("resume")
 			uic_SetPlaybackControl("resume")
 		}
 	} else {
-		//	Default, untested action.
 		SetFunc(data.inputsource)
 	}
 	state.resumePlay = "yes"
@@ -1451,7 +1412,7 @@ def resumeHwPlayer(data) {
 
 def resumeSpkPlayer(data) {
 	//	Speakers.  Restart afte surrogate played the sound.
-	traceLogging("debug", "${device.label}_resumeSpkPlayer: Restoring playback using $data")
+	log.debug "${device.label}_resumeSpkPlayer: Restoring playback using $data"
 	setLevel(data.level)
 	def playerState = state.restore_Data
 	def player = playerState.player
@@ -1465,14 +1426,12 @@ def resumeSpkPlayer(data) {
 				cpm_SetPlaybackControl("play")
 			}
 		} else if (data.submode == "dlna") {
-			//	Default, untested action.
 			uic_SetPlaybackControl("resume")
 			uic_SetPlaybackControl("resume")
 		}
 		getPlayStatus()
- 		runIn(2, setTrackDescription)
+ 		runIn(5, setTrackDescription)
 	} else {
-		//	Default, untested action.
 		SetFunc(data.inputsource)
 	}
     play()
@@ -1482,6 +1441,7 @@ def resumeSpkPlayer(data) {
 //	=====	Utility Functions =====
 //	===============================
 def clearErrorMsg() {
+	unschedule("clearErrorMsg")
 	sendEvent(name: "errorMessage", value: "inactive")
 }
 
@@ -1491,26 +1451,17 @@ def setErrorMsg(errMsg) {
 }
 
 def refresh() {
-	traceLogging("trace", "Running Refresh")
+	getPwr()
 	getPlayStatus()
-    getPwr()
-}
-
-def updateDisplay() {
-	traceLogging("trace", "Running updateDisplay")
-    def cmds = []
-	cmds << getPwr()
-	cmds << GetMute()
-	cmds << GetVolume()
-	cmds << GetFunc()
-	cmds << getPlayStatus()
-	cmds << setTrackDescription()
-    cmds
-//	def subMode = state.subMode
-//	 if (state.subMode == "cp") {
-//		state.restorePlayer = "yes"
-//		GetRadioInfo("getCpDataParse")
-//	}
+	GetFunc()
+	GetMute()
+	GetVolume()
+	runIn(5, setTrackDescription)
+	def subMode = state.subMode
+	 if (state.subMode == "cp") {
+		state.restorePlayer = "yes"
+		GetRadioInfo("getCpDataParse")
+	}
 }
 
 def updateData(name, value) {
@@ -1523,25 +1474,9 @@ def nextMsg() {
 			"generalResponse")
 }
 
-//	===== TRACE LOGGING CONTROL =====
-def traceLogging(level, logItem) {
-//	On interim productions, change to simple break
-	switch(level) {
-    	case "debug":
-        	log.debug logItem
-            break
-        case "trace":
-        	log.trace logItem
-            break
-        default:
-        	log.debug logItem
-            break
-    }
-}
-
 //	====================================
 //	===== SEND Commands to Devices =====
-//	====================================S Middl
+//	====================================
 private sendCmd(command, action){
 	def deviceIP = getDataValue("deviceIP")
 	def cmdStr = new physicalgraph.device.HubAction([
@@ -1553,13 +1488,11 @@ private sendCmd(command, action){
 		null,
 		[callback: action]
 	)
-//log.trace cmdStr
 	sendHubCommand(cmdStr)
 }
 
 private sendUpnpCmd(String action, Map body = [InstanceID:0, Speed:1]) {
 	def deviceIP = getDataValue("deviceIP")
-	traceLogging("debug", "${device.label}_sendUpnpCmd(${action}, ${body}) to ${deviceIP}")
 	def result = new physicalgraph.device.HubSoapAction(
 		path:	"/upnp/control/AVTransport1",
 		urn:	"urn:schemas-upnp-org:service:AVTransport:1",
@@ -1567,7 +1500,6 @@ private sendUpnpCmd(String action, Map body = [InstanceID:0, Speed:1]) {
 		body:	body,
 		headers: [Host: "${deviceIP}:9197", CONNECTION: "close"]
 	)
-//log.trace "\n${result.action.encodeAsHTML()}"
 	result
 }
 
@@ -1590,7 +1522,7 @@ def generalResponse(resp) {
 			break
 		case "CurrentFunc":
 			if (respData.submode == "dmr") {	//	Ignore dmr encountered during TTS
-            	traceLogging("debug", "${device.label}_generalResponse_${respMethod}:  Encountered submode DMR.")
+            	log.info "${device.label}_generalResponse_${respMethod}:  Encountered submode DMR."
 				return
 			} else if (respData.function != device.currentValue("inputSource") || respData.submode != state.subMode) {
 				sendEvent(name: "inputSource", value: respData.function)
@@ -1602,7 +1534,6 @@ def generalResponse(resp) {
 			def level = respData.volume.toInteger()
 			level = Math.round(100*level/scale).toInteger()
 			sendEvent(name: "level", value: level)
-			//	Integration with Master Volume
 			sendEvent(name: "masterVolume", value: level)
 			break
 		case "MuteStatus":
@@ -1646,7 +1577,9 @@ def generalResponse(resp) {
                      break
             }
 			sendEvent(name: "status", value: playerStatus)
-			runIn(5, getPlayTime)	//use runIn to eliminate duplicate running!
+            if (playerStatus == "playing") {
+				runIn(5, getPlayTime)
+            }
 			break
 		case "RepeatMode":
 			def submode = state.subMode
@@ -1672,56 +1605,46 @@ def generalResponse(resp) {
 			break
 //	----- MUSIC INFORMATION METHODS
 		case "MusicInfo":
+	        def timeLength = respData.timelength.toString()
+			if (timelength == "" || timelength == null) {
+ 				state.updateTrackDescription = "no"
+                state.trackLength = 0
+            } else {
+				state.updateTrackDescription = "yes"
+				state.trackLength = timeLength[-5..-4].toInteger() * 60 + timeLength[-2..-1].toInteger()
+            }
+
 			if (respData == "No Music" || respData.errCode == "fail to play") {
 				sendEvent(name: "trackDescription", value: "WiFi DLNA not playing")
-				state.updateTrackDescription = "no"
 				return
 			} else {
-	            def timelength = respData.timelength.toString()
-				state.trackLength = timelength[2..3].toInteger() * 60 + timelength[5..6].toInteger()
 				sendEvent(name: "trackDescription", value: "${respData.title}\n\r${respData.artist}")
-				state.updateTrackDescription = "yes"
             }
+            getPlayTime()
 			break
 		case "RadioInfo":
-            state.trackLength = 0
-        	def playerStatus
-			switch(respData.playstatus) {
-                case "play":
-                 	playerStatus = "playing"
-                    break
-                case "pause":
-                	playerStatus = "paused"
-                    break
-                case "stop":
-                	playerStatus = "stopped"
-                    break
-                default:
-                	playerStatus ="paused"
-                    break
-            	}
-			sendEvent(name: "status", value: playerStatus)
-            
 			def player = respData.cpname
-            def trackDesc
-			state.updateTrackDescription = "yes"
-            if (player == "Unknown") {
-				trackDesc = "Unknown Player"
-				state.updateTrackDescription = "no"
-            } else if (player == "Pandora" && respData.tracklength == "0") {
+            if (respData.tracklength == "" || respData.tracklength == "0") {
+				state.trackLength = 0
+                state.updateTrackDescription = "no"
+            } else {
+				state.trackLength = respData.tracklength.toInteger()
+                state.updateTrackDescription = "yes"
+            }
+            if (device.currentValue("switch") == "off") {
+ 				sendEvent(name: "trackDescription", value: "OFF")
+           } else if (player == "Unknown") {
+				sendEvent(name: "trackDescription", value: "Unknown Player")
+           } else if (player == "Pandora" && state.trackLength == 0) {
 			//	Special code to handle Pandora Commercials (reported at 0 length)
-				trackDesc = "Pandora: Commercial"
+				sendEvent(name: "trackDescription", value: "Commercial")
 				state.trackLength = 30
 			} else if (player == "Amazon" || player == "AmazonPrime" || player == "Pandora" || player == "8tracks") {
-				trackDesc = "${player}: ${respData.artist}: ${respData.title}"
-				state.trackLength = respData.tracklength.toInteger()
+				sendEvent(name: "trackDescription", value: "${respData.artist}: ${respData.title}")
 			} else {
-				trackDesc = "${player}: ${respData.title}"
-//				state.trackLength = respData.tracklength.toInteger()
+				sendEvent(name: "trackDescription", value: "${respData.title}")
 			}
-			sendEvent(name: "trackDescription", value: trackDesc)
-			log.debug "${device.label}__generalResponse_${respMethod}:  Updated trackDesciption to ${trackDesc}"
-            
+
 			if (respData.shufflemode == "") {
 				sendEvent(name: "shuffle", value: "inactive")
 			} else {
@@ -1732,6 +1655,7 @@ def generalResponse(resp) {
 			} else  {
 				sendEvent(name: "repeat", value: respData.repeatmode)
 			}
+            getPlayTime()
 			break
 		case "MusicPlayTime":
 			if (respData.playtime != "" && respData.playtime != null){
@@ -1740,10 +1664,6 @@ def generalResponse(resp) {
 				log.warn "${device.label}_generalResponse_${respMethod}: Null playtime ignored. schedUpdateTrackDescription not called."
 			}
 			break
-		case "SelectCpService":
-        case "RadioSelected":
-			sendEvent(name: "trackDescription", value: "${respData.cpname}: ${respData.audioinfo.title}")
-        	break
 //	----- PLAY PRESET METHODS
 		case "CpChanged":
 			nextMsg()
@@ -1779,7 +1699,6 @@ def generalResponse(resp) {
 			} else if (respData.groupmainmacaddr != state.mainSpkMAC) {
 				return
 			}
-			//	Update volume (since group was created outside SmartThings)
 			GetVolume()
 			def speakerData = [:]
 			def deviceDNI = device.deviceNetworkId
@@ -1809,14 +1728,12 @@ def generalResponse(resp) {
 			break
 		case "ChVolMultich":
 			state.MultiChVol = "${respData.channelvolume}"
-			traceLogging("debug", "${device.label}_generalResponse_${respMethod}: state ChVolMultich = ${state.MultiChVol}")
 			break
 		case "AcmMode":
 			def deviceMac = getDataValue("deviceMac").toString()
 			def sourceMac = respData.audiosourcemacaddr.toString()
 			if (deviceMac == sourceMac) {
 				def groupName = state.groupName
-				traceLogging("debug", "${device.label}_generalResponse_${respMethod}: Updated active group ${groupName}")
 			}
 			break
 		case "SkipInfo":
@@ -1825,6 +1742,8 @@ def generalResponse(resp) {
 			sendEvent(name: "ERROR", value: "${respMethod} : ${respData}")
 			nextMsg()
 			break
+		case "SelectCpService":
+        case "RadioSelected":
 		case "RadioList":
 		case "Ungroup":
 		case "MultispkGroupStartEvent":
@@ -1839,7 +1758,6 @@ def generalResponse(resp) {
 		case "EndPlaybackEvent":
 		case "MediaBufferEndEvent":
 		case "PausePlaybackEvent":
-		//	runIn used to prevent multiple calls to getPlayStatus
 			runIn(2,getPlayStatus)
 			break
 		default:
@@ -1896,7 +1814,6 @@ def searchRadioList(resp) {
 }
 
 def titleSelected(resp) {
-//	def respMethod = (new XmlSlurper().parseText(resp.body)).method
 	SetPlaySelect("0", "generalResponse")
 	cpm_SetPlaybackControl("play")
 	runIn(5, play)
@@ -1937,7 +1854,7 @@ private getCpDataParse(resp) {
 		path = respData.root
 		title = respData.category
 	} else {
-		traceLogging("debug", "${device.label}_getCpDataParse_${respMethod}: ignored method.")
+		log.warn "${device.label}_getCpDataParse_${respMethod}: ignored method."
 	}
 	if (state.restorePlayer == "yes") {
 		state.restorePlayer = "no"
@@ -1957,18 +1874,18 @@ private getCpDataParse(resp) {
 //	===== Spurious data response methods =====
 //	==========================================
 def parse(description) {
-/*	The generic "parse" method is required to capture some second messages
-	sent by the devices that would not be caught in the Hub Action response.*/
+/*	The generic "parse" method is captures some second messages
+	sent by the devices that would not be caught in the Hub Action
+	response.*/
 	try {
 		def resp = parseLanMessage(description)
         def respMethod = (new XmlSlurper().parseText(resp.body)).method
 		switch(respMethod) {
         	case "MainInfo":
+            case "RadioInfo":
 				generalResponse(resp)
-				log.trace "${device.label}_generalResponse_${respMethod}:  Forwarding..."
         		break
 			default:
-//				log.trace "${device.label}_generalResponse_${respMethod}:  NOT FORWARDED!"
         		break
         }
 	} catch (Exception e) {
@@ -2141,8 +2058,8 @@ def Set7bandEQMode(newEqPreset, action = "generalResponse") {
 }
 
 def SetChVolMultich(chVol, action = "generalResponse") {
-log.trace "AT SetChVolMultich command, chVol = ${chVol}, action = ${action}"
-	sendCmd("/UIC?cmd=%3Cname%3ESetChVolMultich%3C%2Fname%3E" +
+//log.debug "AT SetChVolMultich command, chVol = ${chVol}, action = ${action}"
+	sendCmd("/UIC?cmd=%3Cpwron%3Eon%3C/pwron%3E%3Cname%3ESetChVolMultich%3C%2Fname%3E" +
 			"%3Cp%20type%3D%22dec%22%20name%3D%22chvol%22%20val%3D%22${chVol}%22%2F%3E",
 			action)
 }
@@ -2159,8 +2076,15 @@ def SetFunc(newSource, action = "generalResponse") {
 			action)
 }
 
+def SetIpInfo(hubId, hubIpPort, action = "generalResponse") {
+	sendCmd("UIC?cmd=%3Cname%3ESetIpInfo%3Cname%3E" + 
+			"%3Cp%20type=%22str%22%20name=%22uuid%22%20val=%22${hubId}%22/%3E" +
+			"%3Cp%20type=%22str%22%20name=%22ip%22%20val=%22${hubIpPort}%22/%3E",
+			action)
+}
+
 def SetMute(mute, action = "generalResponse") {
-	sendCmd("/UIC?cmd=%3Cname%3ESetMute%3C/name%3E" +
+	sendCmd("/UIC?cmd=%3Cpwron%3Eon%3C/pwron%3E%3Cname%3ESetMute%3C/name%3E" +
 			"%3Cp%20type=%22str%22%20name=%22mute%22%20val=%22${mute}%22/%3E",
 			action)
 }
@@ -2228,7 +2152,7 @@ def SetToggleShuffle(mode, action = "generalResponse") {
 }
 
 def SetTrickMode(trickMode, action = "generalResponse") {
-	sendCmd("/UIC?cmd=%3Cname%3ESetTrickMode%3C/name%3E" +
+	sendCmd("/UIC?cmd=%3Cpwron%3Eon%3C/pwron%3E%3Cname%3ESetTrickMode%3C/name%3E" +
 			"%3Cp%20type=%22str%22%20name=%22trickmode%22%20val=%22${trickMode}%22/%3E",
 			action)
 }
@@ -2239,13 +2163,13 @@ def SetUngroup(action = "generalResponse") {
 }
 
 def SetVolume(deviceLevel, action = "generalResponse") {
-	sendCmd("/UIC?cmd=%3Cname%3ESetVolume%3C/name%3E" +
+	sendCmd("/UIC?cmd=%3Cpwron%3Eon%3C/pwron%3E%3Cname%3ESetVolume%3C/name%3E" +
 			"%3Cp%20type=%22dec%22%20name=%22volume%22%20val=%22${deviceLevel}%22/%3E",
 			action)
 }
 
 def uic_SetPlaybackControl(playbackControl, action = "generalResponse") {
-	sendCmd("/UIC?cmd=%3Cname%3ESetPlaybackControl%3C/name%3E" +
+	sendCmd("/UIC?cmd=%3Cpwron%3Eon%3C/pwron%3E%3Cname%3ESetPlaybackControl%3C/name%3E" +
 			"%3Cp%20type=%22str%22%20name=%22playbackcontrol%22%20val=%22${playbackControl}%22/%3E",
 			action)
 }
