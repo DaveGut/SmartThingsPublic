@@ -33,6 +33,7 @@ TP-Link devices; primarily various users on GitHub.com.
 	a.  Fixed March 1, 2 issue where data would not be
 		captured
 	b.	Update remaining code.
+2018-04-22	Update setCurrentDate to eliminate error for some users.
 //	===== Hub or Cloud Installation =========================*/
 	//def installType = "Cloud"
 	def installType = "Hub"
