@@ -95,7 +95,6 @@ metadata {
 		attribute "eqPreset", "string"
 		command "setInputSource"
 		attribute "inputSource", "string"
-        command "updateDisplay"
 		//	----- CHANNEL PRESET -----
 		command "preset_1"
 		attribute "preset_1", "string"
@@ -145,9 +144,6 @@ metadata {
 		command "playTextAndRestore", ["string","number"]
 		command "playTextAsVoiceAndResume", ["string","number","string"]
 		command "playTextAsVoiceAndRestore", ["string","number","string"]
-        //	----- test Attributes -----
-        attribute "ranRefresh", "string"
-        attribute "ranUpdateDisplay", "string"
 	}
 
 	tiles(scale: 2) {
@@ -178,8 +174,8 @@ metadata {
 			}
 
 			tileAttribute ("device.mute", key: "MEDIA_MUTED") {
-				attributeState("unmuted", action:"mute", nextState: "muted")
-				attributeState("muted", action:"unmute", nextState: "unmuted")
+				attributeState("unmuted", action:"mute")
+				attributeState("muted", action:"unmute")
 			}
 
 			tileAttribute("device.trackDescription", key: "MARQUEE") {
@@ -454,7 +450,7 @@ def installed() {
 		"AmazonPrime": "24", "Amazon": "98", "TuneIn": "99"]
 
 	getSources()
-    connectToSpeaker()
+	connectToSpeaker()
 	Set7bandEQMode(0)
 //	runEvery3Hours(connectToSpeaker)
 	updated()
@@ -663,7 +659,7 @@ def previousTrack() {
 	def player = state.currentPlayer
 	if (state.subMode == "cp") {
 		if (player != "Amazon" && player != "AmazonPrime") {
-			log.info "${device.label}_previousTrack: Previous Track does not work for this player"
+			log.info "previousTrack: Previous Track does not work for this player"
 			setErrorMsg("previousTrack: Previous Track does not work for this player")
 			return
 		}
@@ -681,7 +677,7 @@ def previousTrack() {
 			setErrorMsg("previousTrack: Previous Track does not work for this player")
 			return
 	}
-	runIn(5, setTrackDescription)
+	runIn(10, setTrackDescription)
 }
 
 def nextTrack() {
@@ -689,7 +685,7 @@ def nextTrack() {
 	def player = state.currentPlayer
 	if (submode == "cp") {
 		if (cp != "Amazon" && player != "AmazonPrime" && player != "Pandora" && player != "8tracks") {
-			log.info "${device.label}_nextTrack: Next Track does not work for this player"
+			log.info "$nextTrack: Next Track does not work for this player"
 			setErrorMsg("nextTrack: Next Track does not work for this player")
 			return
 		}
@@ -706,7 +702,7 @@ def nextTrack() {
 			setErrorMsg("nextTrack: Next Track does not work for this player")
 			return
 	}
-	runIn(5, setTrackDescription)
+	runIn(10, setTrackDescription)
 }
 
 def toggleShuffle() {
@@ -727,7 +723,7 @@ def toggleShuffle() {
 			}
 			break
 		default:
-			log.info "${device.label}_toggleShuffle: ShuffleMode not valid for device or mode"
+			log.info "toggleShuffle: ShuffleMode not valid for device or mode"
 			setErrorMsg("toggleShuffle: ShuffleMode not valid for device or mode")
 		 	return
 	}
@@ -751,7 +747,7 @@ def toggleRepeat() {
 			}
 			break
 		default:
-			log.info "${device.label}_toggleRepeat: Repeat not valid for device or mode"
+			log.info "toggleRepeat: Repeat not valid for device or mode"
 			setErrorMsg("toggleRepeat: Repeat not valid for device or mode")
 		 	return
 	}
@@ -829,8 +825,8 @@ def presetDirector(preset, psType) {
 	} else if (psType == "group") {
 		startGroup(preset)
 	} else {
-		log.error "${device.label}_presetDirector: Error in presetDirector, preset = ${preset}"
-		log.error "${device.label}_presetDirector ADDED DATA: presetState = ${presetState}, " +
+		log.error "presetDirector: Error in presetDirector, preset = ${preset}"
+		log.error "presetDirector ADDED DATA: presetState = ${presetState}, " +
 				  "deletePresetState = ${deletePresetState}, psType = ${psType}."
 	}
 }
@@ -860,12 +856,12 @@ def addPreset(preset, psType) {
 	if (psType == "content") {
 		if (state.subMode == "cp") {
 			GetRadioInfo("getCpDataParse")
-        } else if (state.submode == "wifi") {
+        } else if (state.submode == "dlna") {
 //	To be updated to incorporate DLNA Playback
-        	log.error "${device.label}_addPreset: Presets not currently supported for ${state.subMode}."
+        	log.error "addPreset: Presets not currently supported for ${state.subMode}."
 			setErrorMsg("addPreset: Preset for DLNA mode not currently supported.")
         } else {
-        	log.error "${device.label}_addPreset: Presets not currently supported for ${state.subMode}."
+        	log.error "addPreset: Presets not currently supported for ${state.subMode}."
 			setErrorMsg("addPreset: Preset for DLNA mode not currently supported.")
 
         }
@@ -876,7 +872,7 @@ def addPreset(preset, psType) {
 		state.mainSpkDNI = device.deviceNetworkId
 		GetGroupName()
 	} else {
-		log.error "${device.label}_addPreset: Error in addPreset, preset = ${preset}"
+		log.error "$addPreset: Error in addPreset, preset = ${preset}"
 		setErrorMsg("addPreset: Failed.  Please check for problem and try again.")
 	}
 }
@@ -897,7 +893,7 @@ def createPreset(player, playerNo, path, title) {
 		title = title.take(29)
 	}
 	sendEvent(name: preset, value: "${title}")
-	runIn(5, setTrackDescription)
+	runIn(10, GetRadioInfo)
 }
 
 def deletePreset() {
@@ -930,7 +926,7 @@ def startGroup(preset) {
 	if (state.activeGroupPs == null || state.activeGroupPs == preset) {
 		state.activeGroupPs = preset
 	} else {
-		log.error "${device.label}_startGroup: tried to activate group with ${state.activeGroupPs} active."
+		log.error "startGroup: tried to activate group with ${state.activeGroupPs} active."
 		setErrorMsg("startGroup: Failed.  Group already active")
 		return
 	}
@@ -1055,7 +1051,7 @@ def unArmGroupPsOff() {
 
 def setGroupMasterVolume(masterVolume) {
 	if (state.activeGroupPs == null) {
-		log.info "${device.label}_setGroupMasterVolume: Function not available, no Group active."
+		log.info "setGroupMasterVolume: Function not available, no Group active."
 		setErrorMsg("setGroupMasterVolume: Function not available, no Group active.")
 		return
  	}
@@ -1162,44 +1158,28 @@ def setSpkType(type) {
 //	===== Play Content from players and DLNA =====
 //	==============================================
 def playContent(preset) {
-	sendEvent(name: "switch", value: "on", isStateChange: true)
+//	sendEvent(name: "switch", value: "on")
+//	sendEvent(name: "status", value: "playing")
+//	state.subMode = "cp"
 	def playerState = state."${preset}_Data"
 	state.restore_Data = playerState
 	def contentType = playerState.type
 	def player = playerState.player
-	def title = playerState.title
-	def path = playerState.path
 	def playerNo = playerState.playerNo
+    def title = playerState.title
 	state.currentPlayer = "${player}"
-	playCpContent(player, playerNo, path, title)
-}
-
-def playCpContent(player, playerNo, path, title) {
-	log.info "${device.label}_playCpContent: playing CP content ${player} ${title} ${path}."
-	sendEvent(name: "inputSource", value: "wifi")
-	state.subMode = "cp"
- 	switch(player) {
+	log.info "playContent ${title} on ${player}."
+	switch(player) {
 		case "Amazon":
 			SetSelectAmazonCp("generalResponse")
-			SetSelectCpSubmenu(1, "searchRadioList")
-			break
-		case "AmazonPrime":
-			SetCpService(playerNo, "generalResponse")
 			break
 		case "TuneIn":
 			SetSelectRadio("generalResponse")
-			PlayById(player, path, "generalResponse")
-			cpm_SetPlaybackControl("play")
-			runIn(10, play)
  			break
 		default:
 			SetCpService(playerNo, "generalResponse")
-			PlayById(player, path, "generalResponse")
-			cpm_SetPlaybackControl("play")
-			runIn(10, play)
 			break
 	}
-	runIn(15, updateDisplay)
 }
 
 //	=======================================
@@ -1211,6 +1191,7 @@ def setTrackDescription() {
 	def source = device.currentValue("inputSource")
 	if (source != "wifi") {
 		sendEvent(name: "trackDescription", value: source)
+		log.info "setTrackDescription: Updated trackDesciption to ${source}"
 		sendEvent(name: "shuffle", value: "inactive")
 		sendEvent(name: "repeat", value: "inactive")
 	} else {
@@ -1223,7 +1204,7 @@ def setTrackDescription() {
 				break
 			case "device":
 				sendEvent(name: "trackDescription", value: "WiFi ${submode}")
-				log.info "${device.label}_setTrackDescription: Updated trackDesciption to WiFi ${submode}"
+				log.info "setTrackDescription: Updated trackDesciption to WiFi ${submode}"
                 state.updateTrackDescription = "no"
 				sendEvent(name: "shuffle", value: "inactive")
 				sendEvent(name: "repeat", value: "inactive")
@@ -1231,7 +1212,7 @@ def setTrackDescription() {
 				break
 			default:
 				sendEvent(name: "trackDescription", value: "WiFi (${submode})")
-				log.info "${device.label}_setTrackDescription: Updated trackDesciption to WiFi ${submode}"
+				log.info "setTrackDescription: Updated trackDesciption to WiFi ${submode}"
                 state.updateTrackDescription = "no"
 				sendEvent(name: "shuffle", value: "inactive")
 				sendEvent(name: "repeat", value: "inactive")
@@ -1242,7 +1223,7 @@ def setTrackDescription() {
 def getPlayTime() {
 	def update = state.updateTrackDescription
 	if(update == "no") {
-		log.info "${device.label}_getPlayTime: schedSetTrackDescription turned off"
+		log.debug "getPlayTime: schedSetTrackDescription turned off"
 		return
 	} else {
 		GetCurrentPlayTime()
@@ -1253,26 +1234,26 @@ def schedSetTrackDescription(playtime) {
 	def nextUpdate
 	if (state.trackLength == null || state.trackLength == 0) {
     	state.updateTrackDescription = "no"
-		log.info "${device.label}_schedSetTrackDescription: Track Description will not update."
+		log.debug "schedSetTrackDescription: Track Description will not update."
         return
 	} else {
 		nextUpdate = state.trackLength - playtime + 3
 	}
 	runIn(nextUpdate, setTrackDescription)
-	log.info "${device.label}_schedSetTrackDescription: Track Description will update in ${nextUpdate} seconds"
+	log.info "schedSetTrackDescription: Track Description will update in ${nextUpdate} seconds"
 }
 
 //	======================================
 //	===== Play external URI Commands =====
 //	======================================
 def playTextAsVoiceAndRestore(text, volume=null, voice=null) {
-	log.info "${device.label}_playTextAsVoiceAndRestore(${text}, ${volume}, ${voice})."
+	log.info "playTextAsVoiceAndRestore(${text}, ${volume}, ${voice})."
 	state.resumePlay = "no"
 	playTextAsVoiceAndResume(text, volume, voice)
 }
 
 def playTextAsVoiceAndResume(text, volume=null, voice=null) {
-	log.info "${device.label}_playTextAsVoiceAndResume(${text}, ${volume}, ${voice})."
+	log.info "playTextAsVoiceAndResume(${text}, ${volume}, ${voice})."
 	if (!voice) {
 		voice = state.ttsVoice
 	}
@@ -1296,13 +1277,13 @@ def playTextAsVoiceAndResume(text, volume=null, voice=null) {
 }
 
 def playTextAndRestore(text, volume=null) {
-	log.info "${device.label}_playTextAndRestore(${text}, ${volume})."
+	log.info "playTextAndRestore(${text}, ${volume})."
 	state.resumePlay = "no"
 	playTextAndResume(text, volume)
 }
 
 def playTextAndResume(text, volume=null) {
-	log.info "${device.label}_playTextAndResume(${text}, ${volume})."
+	log.info "playTextAndResume(${text}, ${volume})."
 	def soundUri = ""
 	def duration = 0
     def swType = getDataValue("swType")
@@ -1324,24 +1305,22 @@ def playTextAndResume(text, volume=null) {
 
 def playTrack(String uri, volume) {
 	setErrorMsg("_playTrack: Not Supported.")
-	log.warn "${device.label}_playTrack: Not Supported."
+	log.warn "playTrack: Not Supported."
 }
 
 def playTrackAndRestore(uri, duration, volume=null) {
-	traceLogging("debug", "${device.label}_playTrackAndRetore(${uri}, ${duration}, ${volume}).")
 	if (state.spkType == "sub") {
 		//	If a subspeaker in group, send to the Main speaker.
-		log.info "${device.label}_playTrackAndRetore: Subspeaker sending TTS to Main."
+		log.debug "playTrackAndRetore: Subspeaker sending TTS to Main."
 		parent.sendCmdToMain(state.mainSpkDNI, "playTrackAndRestore", uri, duration, volume, "")
 	} else {
 		state.resumePlay = "no"
+		log.info "playTrackAndRetore(${uri}, ${duration}, ${volume})."
 		playTrackAndResume(uri, duration, volume)
 	}
 }
 
 def playTrackAndResume(uri, duration, volume=null) {
-	log.debug "${device.label}_playTrackAndResume(${uri}, ${duration}, ${volume})."
-	on()
 	def inputSource = device.currentValue("inputSource")
     def swType = getDataValue("swType")
 	if (inputSource == "wifi" && device.currentValue("status") != "playing") {
@@ -1351,12 +1330,12 @@ def playTrackAndResume(uri, duration, volume=null) {
 	}
 	if (state.spkType == "sub") {
 		//	If a subspeaker in group, send to the Main speaker.
-		log.debug "${device.label}_playTrackAndResume: Subspeaker sending TTS to Main."
+		log.debug "playTrackAndResume: Subspeaker sending Audio Notification to Main Group Speaker."
 		parent.sendCmdToMain(state.mainSpkDNI, "playTrackAndResume", uri, duration, volume, "")
 	} else if (swType == "SoundPlus") {
 		//	SoundPlus Soundbar only.  Play using UPNP commands.
-		log.info "${device.label}_playTrackAndResume($uri, $duration, $volume) on Sundbar"
-        pause()
+		log.info "playTrackAndResume($uri, $duration, $volume) on Soundbar"
+//        pause()
 		if (state.resumePlay == "yes") {
 			def subMode = state.subMode
 			def oldLevel = device.currentValue("level").toInteger()
@@ -1367,7 +1346,6 @@ def playTrackAndResume(uri, duration, volume=null) {
 		if(newLevel) {
 				setLevel(newLevel)
 		}
-        def delayTime = duration * 1000
 		def result = []
 		result << sendUpnpCmd("SetAVTransportURI", [InstanceID: 0, CurrentURI: uri, CurrentURIMetaData: ""])
 		result << sendUpnpCmd("Play")
@@ -1375,17 +1353,17 @@ def playTrackAndResume(uri, duration, volume=null) {
 	} else {
 		//	Speakers and other Soundbars - Play on surrogate LAN SAMSUNG SPEAKER
 		if (ttsSpeaker == null) {
-			log.info "${device.label}_playTrackAndResume: Surrogate Speaker not selected."
+			log.error "playTrackAndResume: Surrogate Speaker not selected."
 			setErrorMsg("playTrackAndResume: Surrogate Speaker not selected.")
 		} else {
-			log.info "${device.label}_playTrackAndResume: playing TTS Sound on surrogate speaker."
+			log.info "playTrackAndResume($uri, $duration, $volume) sent to surrogate speaker."
 			pause()
 			if (state.resumePlay == "yes") {
 				//	Only resume play of original playTrackAndResume
 				def subMode = state.subMode
 				def oldLevel = device.currentValue("level").toInteger()
 				def delayTime = duration.toInteger() + 1
-				runIn(delayTime, resumeSpkPlayer, [data: [level: oldLevel, inputsource: inputSource, submode: subMode]])
+				runIn(delayTime, resumeHwPlayer, [data: [level: oldLevel, inputsource: inputSource, submode: subMode]])
 			}
 			def playType = "resume"
 			parent.sendCmdToSurrogate(ttsSpeaker, playType, uri, duration, volume, "")
@@ -1395,13 +1373,12 @@ def playTrackAndResume(uri, duration, volume=null) {
 
 def resumeHwPlayer(data) {
 	//	Soundbar only.  Restore player after playing url.
-	log.debug "${device.label}_resumeHwPlayer: Restoring playback using ${state.restore_Data}"
+	log.debug "resumeHwPlayer: Restoring playback using ${data}"
 	setLevel(data.level)
 	if (data.inputsource == "wifi") {
 		if (data.submode == "cp") {
 			playContent("restore")
 		} else if (data.submode == "dlna") {
-			uic_SetPlaybackControl("resume")
 			uic_SetPlaybackControl("resume")
 		}
 	} else {
@@ -1410,36 +1387,13 @@ def resumeHwPlayer(data) {
 	state.resumePlay = "yes"
 }
 
-def resumeSpkPlayer(data) {
-	//	Speakers.  Restart afte surrogate played the sound.
-	log.debug "${device.label}_resumeSpkPlayer: Restoring playback using $data"
-	setLevel(data.level)
-	def playerState = state.restore_Data
-	def player = playerState.player
-	if (data.inputsource == "wifi") {
-		if (data.submode == "cp") {
-			if (player == "Amazon" || player == "AmazonPrime" || player == "8tracks") {
-				cpm_SetPlaybackControl("play")
-				SetSkipCurrentTrack()
-			} else {
-				cpm_SetPlaybackControl("play")
-				cpm_SetPlaybackControl("play")
-			}
-		} else if (data.submode == "dlna") {
-			uic_SetPlaybackControl("resume")
-			uic_SetPlaybackControl("resume")
-		}
-		getPlayStatus()
- 		runIn(5, setTrackDescription)
-	} else {
-		SetFunc(data.inputsource)
-	}
-    play()
-}
-
 //	===============================
 //	=====	Utility Functions =====
 //	===============================
+def cpPlay() {
+	cpm_SetPlaybackControl("play")
+}
+
 def clearErrorMsg() {
 	unschedule("clearErrorMsg")
 	sendEvent(name: "errorMessage", value: "inactive")
@@ -1457,16 +1411,16 @@ def refresh() {
 	GetMute()
 	GetVolume()
 	runIn(5, setTrackDescription)
-	def subMode = state.subMode
-	 if (state.subMode == "cp") {
-		state.restorePlayer = "yes"
-		GetRadioInfo("getCpDataParse")
-	}
+//	def subMode = state.subMode
+//	 if (state.subMode == "cp") {
+//		state.restorePlayer = "yes"
+//		GetRadioInfo("getCpDataParse")
+//	}
 }
 
 def updateData(name, value) {
 	updateDataValue("${name}", "${value}")
-	log.info "${device.label}_updateData: updated ${name} to ${value}"
+	log.info "updateData: updated ${name} to ${value}"
 }
 
 def nextMsg() {
@@ -1478,6 +1432,7 @@ def nextMsg() {
 //	===== SEND Commands to Devices =====
 //	====================================
 private sendCmd(command, action){
+	log.debug "sendCmd:  ${command}"
 	def deviceIP = getDataValue("deviceIP")
 	def cmdStr = new physicalgraph.device.HubAction([
 		method: "GET",
@@ -1492,6 +1447,7 @@ private sendCmd(command, action){
 }
 
 private sendUpnpCmd(String action, Map body = [InstanceID:0, Speed:1]) {
+	log.debug "sendUpnpCmd:  ${action}"
 	def deviceIP = getDataValue("deviceIP")
 	def result = new physicalgraph.device.HubSoapAction(
 		path:	"/upnp/control/AVTransport1",
@@ -1509,7 +1465,7 @@ private sendUpnpCmd(String action, Map body = [InstanceID:0, Speed:1]) {
 def generalResponse(resp) {
 	def respMethod = (new XmlSlurper().parseText(resp.body)).method
 	def respData = (new XmlSlurper().parseText(resp.body)).response
-//	log.trace "${device.label}_generalResponse_${respMethod}:  Parsing...."
+	log.debug "generalResponse_${respMethod}:  ${respData}"
 	switch(respMethod) {
 //	----- SOUNDBAR STATUS METHODS -----
 		case "PowerStatus":
@@ -1522,7 +1478,7 @@ def generalResponse(resp) {
 			break
 		case "CurrentFunc":
 			if (respData.submode == "dmr") {	//	Ignore dmr encountered during TTS
-            	log.info "${device.label}_generalResponse_${respMethod}:  Encountered submode DMR."
+            	log.info "$generalResponse_${respMethod}:  Encountered submode DMR."
 				return
 			} else if (respData.function != device.currentValue("inputSource") || respData.submode != state.subMode) {
 				sendEvent(name: "inputSource", value: respData.function)
@@ -1655,13 +1611,14 @@ def generalResponse(resp) {
 			} else  {
 				sendEvent(name: "repeat", value: respData.repeatmode)
 			}
+			log.info "generalResponse_${respMethod}: Track Description is ${state.trackDescription}."
             getPlayTime()
 			break
 		case "MusicPlayTime":
 			if (respData.playtime != "" && respData.playtime != null){
 				schedSetTrackDescription(respData.playtime.toInteger())
 			} else {
-				log.warn "${device.label}_generalResponse_${respMethod}: Null playtime ignored. schedUpdateTrackDescription not called."
+				log.warn "generalResponse_${respMethod}: Null playtime ignored. schedUpdateTrackDescription not called."
 			}
 			break
 //	----- PLAY PRESET METHODS
@@ -1678,12 +1635,28 @@ def generalResponse(resp) {
 				} else if (path == "My Music") {
  					SetSelectCpSubmenu(6, "searchRadioList")
 				}
-			}
+			} else {
+            	def playerState = state.restore_Data
+				PlayById(playerState.player, playerState.path, "generalResponse")
+				cpm_SetPlaybackControl("play")
+				runIn(10, cpPlay)
+	            runIn(15, GetRadioInfo)
+            }
 			break
+        case "RadioSelected":
+            def playerState = state.restore_Data
+			PlayById(playerState.player, playerState.path, "generalResponse")
+			cpm_SetPlaybackControl("play")
+			runIn(10, cpPlay)
+            runIn(15, GetRadioInfo)
+            break
+        case "AmazonCpSelected":
+			SetSelectCpSubmenu(1, "searchRadioList")
+            break
 		case "GroupName":
 			def groupName = respData.groupname
 			if (groupName == "" || groupName == "Group 0") {
-				log.warn "${device.label}_generalResponse_${respMethod}: Not a group speaker."
+				log.warn "generalResponse_${respMethod}: Not a group speaker."
 				setErrorMsg("generalResponse_${respMethod}: Not a group speaker.")
 			return
 			}
@@ -1723,7 +1696,7 @@ def generalResponse(resp) {
 				}
 				data["spksInGroup"] = "${respData.groupspknum}"
 				data["main"] = speakerData
-					parent.requestSubSpeakerData(deviceMac, deviceDNI)
+				parent.requestSubSpeakerData(deviceMac, deviceDNI)
 			}
 			break
 		case "ChVolMultich":
@@ -1738,30 +1711,28 @@ def generalResponse(resp) {
 			break
 		case "SkipInfo":
 		case "ErrorEvent":
-			log.error "${device.label}:  Speaker Error: ${respMethod} : ${respData}"
+			log.error "Speaker Error: ${respMethod} : ${respData}"
 			sendEvent(name: "ERROR", value: "${respMethod} : ${respData}")
 			nextMsg()
 			break
 		case "SelectCpService":
-        case "RadioSelected":
-		case "RadioList":
+ 		case "RadioList":
 		case "Ungroup":
-		case "MultispkGroupStartEvent":
 		case "RadioPlayList":
 		case "MultispkGroup":
 		case "SoftwareVersion":
 		case "RequestDeviceInfo":
-            break
+		case "MultispkGroupStartEvent":
 		case "StartPlaybackEvent":
 		case "MediaBufferStartEvent":
 		case "StopPlaybackEvent":
 		case "EndPlaybackEvent":
 		case "MediaBufferEndEvent":
 		case "PausePlaybackEvent":
-			runIn(2,getPlayStatus)
+//			log.debug "generalResponse_${respMethod}:  IGNORED"
 			break
 		default:
-			log.warn "${device.label}_generalResponse_${respMethod}: Method not handed.  Data: ${respData}"
+			log.warn "generalResponse_${respMethod}: Method not handed.  Data: ${respData}"
 			break
 	}
 }
@@ -1772,6 +1743,7 @@ def generalResponse(resp) {
 def searchRadioList(resp) {
 	def respMethod = (new XmlSlurper().parseText(resp.body)).method
 	def respData = (new XmlSlurper().parseText(resp.body)).response
+//	log.trace "searchRadioList_${respMethod}:  Parsing...."
 	def player = respData.cpname
 	if (player == "AmazonPrime" && respData.root == "My Music" && respData.category.@isroot == "1") {
 		GetSelectRadioList("0", "searchRadioList")
@@ -1790,8 +1762,8 @@ def searchRadioList(resp) {
 		}
 	}
 	if (contentId == "") {
-		log.warn "${device.label}_searchRadioList: Invalid Preset Title: ${title}"
-		log.warn "${device.label}_searchRadioList Added info: ${respData}"
+		log.warn "searchRadioList: Invalid Preset Title: ${title}"
+		log.warn "searchRadioList Added info: ${respData}"
 		setErrorMsg("searchRadioList: Invalid Preset Title: ${title}")
 		return
 	}
@@ -1803,25 +1775,28 @@ def searchRadioList(resp) {
 			if (path == "Playlists" || path == "My Music") {
 				GetSelectRadioList(contentId, "titleSelected")
 			} else {
-				log.warn "${device.label}}_searchRadioList: Invalid Amazon Prime selection"
+				log.warn "searchRadioList: Invalid Amazon Prime selection"
 				setErrorMsg("searchRadioList: Invalid Amazon Prime selection")
 			}
 			break
 		default:
-			log.warn "${device.label}}_searchRadioList: Invalid information"
+			log.warn "searchRadioList: Invalid information"
 			setErrorMsg("searchRadioList: Invalid information")
 	}
 }
 
 def titleSelected(resp) {
+	log.trace "titleSelected"
 	SetPlaySelect("0", "generalResponse")
 	cpm_SetPlaybackControl("play")
-	runIn(5, play)
+	runIn(10, cpPlay)
+	runIn(15, GetRadioInfo)
 }
 
 private getCpDataParse(resp) {
 	def respMethod = (new XmlSlurper().parseText(resp.body)).method
 	def respData = (new XmlSlurper().parseText(resp.body)).response
+	log.trace "getCpDataParse_${respMethod}:  Parsing...."
 	def player = respData.cpname
 	state.currentPlayer = "${player}"
 	def cpChannels = state.cpChannels
@@ -1854,7 +1829,7 @@ private getCpDataParse(resp) {
 		path = respData.root
 		title = respData.category
 	} else {
-		log.warn "${device.label}_getCpDataParse_${respMethod}: ignored method."
+		log.warn "getCpDataParse_${respMethod}: ignored method."
 	}
 	if (state.restorePlayer == "yes") {
 		state.restorePlayer = "no"
@@ -1884,12 +1859,14 @@ def parse(description) {
         	case "MainInfo":
             case "RadioInfo":
 				generalResponse(resp)
+//				log.debug "parse_${respMethod}:  FORWARD TO GENERAL RESPONSE"
         		break
 			default:
+//				log.debug "parse_${respMethod}:  IGNORED"
         		break
         }
 	} catch (Exception e) {
-		log.warn "${device.label}_parse:  parseLanMesage failed.  ${description}"
+		log.warn "parse:  parseLanMesage failed.  ${description}"
 	}
 }
 
