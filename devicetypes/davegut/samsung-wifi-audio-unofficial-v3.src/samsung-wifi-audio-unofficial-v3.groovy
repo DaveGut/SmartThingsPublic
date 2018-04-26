@@ -523,7 +523,6 @@ def connectToSpeaker() {
 //	====================================
 def on() {
 	SetPowerStatus("1")
-    play()
 	sendEvent(name: "switch", value: "on")
 	GetFunc()
 	GetMute()
@@ -536,7 +535,6 @@ def off() {
 	SetPowerStatus("0")
 	sendEvent(name: "switch", value: "off")
 	sendEvent(name: "trackDescription", value: "OFF")
-    getPlayStatus()
 }
 
 def setInputSource() {
@@ -551,7 +549,7 @@ def setInputSource() {
 	state.currentSourceNo = sourceNo
 	sendEvent(name: "inputSource", value: sources[sourceNo])
 	SetFunc(sources[sourceNo])
-    runIn(2, setTrackDescription)
+    runIn(5, setTrackDescription)
 }
 
 def setLevel(level) {
@@ -651,26 +649,25 @@ def getPlayStatus() {
 			cpm_GetPlayStatus()
 			break
 		default:
+			sendEvent(name: "status", value: "playing")
 			return
 	}
 }
 
 def previousTrack() {
-	def player = state.currentPlayer
-	if (state.subMode == "cp") {
-		if (player != "Amazon" && player != "AmazonPrime") {
-			log.info "previousTrack: Previous Track does not work for this player"
-			setErrorMsg("previousTrack: Previous Track does not work for this player")
-			return
-		}
-	}
 	switch(state.subMode) {
+		case "cp":
+			def player = state.currentPlayer
+			if (player == "Amazon" || player == "AmazonPrime") {
+				SetPreviousTrack()
+				runIn(1, SetPreviousTrack)
+            } else {
+				log.info "previousTrack: Previous Track does not work for this player"
+				setErrorMsg("previousTrack: Previous Track does not work for this player")
+			}
+			break
 		case "dlna":
 			SetTrickMode("previous")
-			break
-		case "cp":
-			SetPreviousTrack()
-			runIn(1, SetPreviousTrack)
 			break
 		default:
 			log.info "${device.label}_previousTrack: Previous Track does not work for this player"
@@ -682,20 +679,18 @@ def previousTrack() {
 
 def nextTrack() {
 	def submode = state.subMode
-	def player = state.currentPlayer
-	if (submode == "cp") {
-		if (cp != "Amazon" && player != "AmazonPrime" && player != "Pandora" && player != "8tracks") {
-			log.info "$nextTrack: Next Track does not work for this player"
-			setErrorMsg("nextTrack: Next Track does not work for this player")
-			return
-		}
-	}
 	switch(state.subMode) {
+		case "cp":
+			def player = state.currentPlayer
+			if (player == "Amazon" || player == "AmazonPrime" || player == "Pandora" || player == "8tracks") {
+				SetSkipCurrentTrack()
+            } else {
+				log.info "$nextTrack: Next Track does not work for this player"
+				setErrorMsg("nextTrack: Next Track does not work for this player")
+            }
+			break
 		case "dlna":
 			SetTrickMode("next")
-			break
-		case "cp":
-			SetSkipCurrentTrack()
 			break
 		default:
 			log.info "${device.label}_nextTrack: Next Track does not work for this player"
@@ -857,7 +852,6 @@ def addPreset(preset, psType) {
 		if (state.subMode == "cp") {
 			GetRadioInfo("getCpDataParse")
         } else if (state.submode == "dlna") {
-//	To be updated to incorporate DLNA Playback
         	log.error "addPreset: Presets not currently supported for ${state.subMode}."
 			setErrorMsg("addPreset: Preset for DLNA mode not currently supported.")
         } else {
@@ -1158,9 +1152,6 @@ def setSpkType(type) {
 //	===== Play Content from players and DLNA =====
 //	==============================================
 def playContent(preset) {
-//	sendEvent(name: "switch", value: "on")
-//	sendEvent(name: "status", value: "playing")
-//	state.subMode = "cp"
 	def playerState = state."${preset}_Data"
 	state.restore_Data = playerState
 	def contentType = playerState.type
@@ -1247,20 +1238,28 @@ def schedSetTrackDescription(playtime) {
 //	===== Play external URI Commands =====
 //	======================================
 def playTextAsVoiceAndRestore(text, volume=null, voice=null) {
-	log.info "playTextAsVoiceAndRestore(${text}, ${volume}, ${voice})."
-	state.resumePlay = "no"
-	playTextAsVoiceAndResume(text, volume, voice)
+	if (state.spkType == "sub") {
+		//	If a subspeaker in group, send to the Main speaker.
+		log.info "playTextAsVoiceAndRestore: Subspeaker sending playTextAsVoiceAndResume to Main Group Speaker."
+		parent.sendCmdToMain(state.mainSpkDNI, "playTextAsVoiceAndRestore", text, volume, voice, "")
+	} else {
+		state.resumePlay = "no"
+		playTextAsVoiceAndResume(text, volume, voice)
+    }
 }
 
 def playTextAsVoiceAndResume(text, volume=null, voice=null) {
-	log.info "playTextAsVoiceAndResume(${text}, ${volume}, ${voice})."
 	if (!voice) {
 		voice = state.ttsVoice
 	}
 	def soundUri = ""
 	def duration = 0
     def swType = getDataValue("swType")
-	if (swType == "SoundPlus") {
+	if (state.spkType == "sub") {
+		//	If a subspeaker in group, send to the Main speaker.
+		log.info "playTextAsVoiceAndResume: Subspeaker sending playTextAsVoiceAndResume to Main Group Speaker."
+		parent.sendCmdToMain(state.mainSpkDNI, "playTextAsVoiceAndResume", text, volume, voice, "")
+	} else if (swType == "SoundPlus") {
 		def uriText = URLEncoder.encode(text, "UTF-8").replaceAll(/\+/, "%20")
 		soundUri = "http://api.voicerss.org/?" +
 			"key=${ttsApiKey}" +
@@ -1268,26 +1267,36 @@ def playTextAsVoiceAndResume(text, volume=null, voice=null) {
 			"&hl=${state.ttsLanguage}" +
 			"&src=${uriText}"
 		duration = Math.max(Math.round(text.length()/12),2)
+		playTrackAndResume(soundUri, (duration as Integer) + 1, volume)
 	} else {
 		def sound = textToSpeech(text, voice)
 		soundUri = sound.uri
 		duration = sound.duration
+		playTrackAndResume(soundUri, (duration as Integer) + 1, volume)
 	}
-	playTrackAndResume(soundUri, (duration as Integer) + 1, volume)
 }
 
 def playTextAndRestore(text, volume=null) {
-	log.info "playTextAndRestore(${text}, ${volume})."
-	state.resumePlay = "no"
-	playTextAndResume(text, volume)
+	if (state.spkType == "sub") {
+		//	If a subspeaker in group, send to the Main speaker.
+		log.info "playTextAndRestore: Subspeaker sending playTextAsVoiceAndResume to Main Group Speaker."
+		parent.sendCmdToMain(state.mainSpkDNI, "playTextAndRestore", text, volume, "", "")
+	} else {
+		log.info "playTextAndRestore(${text}, ${volume})."
+		state.resumePlay = "no"
+		playTextAndResume(text, volume)
+    }
 }
 
 def playTextAndResume(text, volume=null) {
-	log.info "playTextAndResume(${text}, ${volume})."
 	def soundUri = ""
 	def duration = 0
     def swType = getDataValue("swType")
-	if (swType == "SoundPlus") {
+	if (state.spkType == "sub") {
+		//	If a subspeaker in group, send to the Main speaker.
+		log.info "playTextAndResume: Subspeaker sending playTextAsVoiceAndResume to Main Group Speaker."
+		parent.sendCmdToMain(state.mainSpkDNI, "playTextAndResume", text, volume, "", "")
+	} else if (swType == "SoundPlus") {
 		def uriText = URLEncoder.encode(text, "UTF-8").replaceAll(/\+/, "%20")
 		soundUri = "http://api.voicerss.org/?" +
 			"key=${ttsApiKey}" +
@@ -1295,12 +1304,13 @@ def playTextAndResume(text, volume=null) {
 			"&hl=${state.ttsLanguage}" +
 			"&src=${uriText}"
 		duration = Math.max(Math.round(text.length()/12),2)
+		playTrackAndResume(soundUri, (duration as Integer) + 1, volume)
 	} else {
 		def sound = textToSpeech(text, state.ttsVoice)
 		soundUri = sound.uri
 		duration = sound.duration
+		playTrackAndResume(soundUri, (duration as Integer) + 1, volume)
 	}
-	playTrackAndResume(soundUri, (duration as Integer) + 1, volume)
 }
 
 def playTrack(String uri, volume) {
@@ -1311,11 +1321,10 @@ def playTrack(String uri, volume) {
 def playTrackAndRestore(uri, duration, volume=null) {
 	if (state.spkType == "sub") {
 		//	If a subspeaker in group, send to the Main speaker.
-		log.debug "playTrackAndRetore: Subspeaker sending TTS to Main."
+		log.info "playTrackAndRetore: Subspeaker sending Audio Notification / TTS to Main."
 		parent.sendCmdToMain(state.mainSpkDNI, "playTrackAndRestore", uri, duration, volume, "")
 	} else {
 		state.resumePlay = "no"
-		log.info "playTrackAndRetore(${uri}, ${duration}, ${volume})."
 		playTrackAndResume(uri, duration, volume)
 	}
 }
@@ -1330,7 +1339,7 @@ def playTrackAndResume(uri, duration, volume=null) {
 	}
 	if (state.spkType == "sub") {
 		//	If a subspeaker in group, send to the Main speaker.
-		log.debug "playTrackAndResume: Subspeaker sending Audio Notification to Main Group Speaker."
+		log.info "playTrackAndResume: Subspeaker sending Audio Notification to Main Group Speaker."
 		parent.sendCmdToMain(state.mainSpkDNI, "playTrackAndResume", uri, duration, volume, "")
 	} else if (swType == "SoundPlus") {
 		//	SoundPlus Soundbar only.  Play using UPNP commands.
@@ -1587,11 +1596,9 @@ def generalResponse(resp) {
 				state.trackLength = respData.tracklength.toInteger()
                 state.updateTrackDescription = "yes"
             }
-            if (device.currentValue("switch") == "off") {
- 				sendEvent(name: "trackDescription", value: "OFF")
-           } else if (player == "Unknown") {
+            if (player == "Unknown") {
 				sendEvent(name: "trackDescription", value: "Unknown Player")
-           } else if (player == "Pandora" && state.trackLength == 0) {
+			} else if (player == "Pandora" && state.trackLength == 0) {
 			//	Special code to handle Pandora Commercials (reported at 0 length)
 				sendEvent(name: "trackDescription", value: "Commercial")
 				state.trackLength = 30
@@ -1611,7 +1618,7 @@ def generalResponse(resp) {
 			} else  {
 				sendEvent(name: "repeat", value: respData.repeatmode)
 			}
-			log.info "generalResponse_${respMethod}: Track Description is ${state.trackDescription}."
+			log.info "generalResponse_${respMethod}: Track Description is ${device.currentValue("trackDescription")}."
             getPlayTime()
 			break
 		case "MusicPlayTime":
@@ -1623,7 +1630,6 @@ def generalResponse(resp) {
 			break
 //	----- PLAY PRESET METHODS
 		case "CpChanged":
-			nextMsg()
 			def player = respData.cpname
 			def presetData = state."${state.currentPreset}_Data"
 			def path = presetData.path
@@ -1638,10 +1644,9 @@ def generalResponse(resp) {
 			} else {
             	def playerState = state.restore_Data
 				PlayById(playerState.player, playerState.path, "generalResponse")
-				cpm_SetPlaybackControl("play")
-				runIn(10, cpPlay)
+				runIn(5, cpPlay)
 	            runIn(15, GetRadioInfo)
-            }
+			}
 			break
         case "RadioSelected":
             def playerState = state.restore_Data
@@ -1653,6 +1658,7 @@ def generalResponse(resp) {
         case "AmazonCpSelected":
 			SetSelectCpSubmenu(1, "searchRadioList")
             break
+//	----- GROUP METHODS
 		case "GroupName":
 			def groupName = respData.groupname
 			if (groupName == "" || groupName == "Group 0") {
@@ -1717,19 +1723,23 @@ def generalResponse(resp) {
 			break
 		case "SelectCpService":
  		case "RadioList":
+        case "SubMenu":
 		case "Ungroup":
 		case "RadioPlayList":
 		case "MultispkGroup":
 		case "SoftwareVersion":
 		case "RequestDeviceInfo":
 		case "MultispkGroupStartEvent":
+//			log.debug "generalResponse_${respMethod}:  IGNORED"
+			break
+		case "MultispkGroupStartEvent":
 		case "StartPlaybackEvent":
 		case "MediaBufferStartEvent":
 		case "StopPlaybackEvent":
 		case "EndPlaybackEvent":
 		case "MediaBufferEndEvent":
-		case "PausePlaybackEvent":
-//			log.debug "generalResponse_${respMethod}:  IGNORED"
+ 		case "PausePlaybackEvent":
+ 			runIn(3, getPlayStatus)
 			break
 		default:
 			log.warn "generalResponse_${respMethod}: Method not handed.  Data: ${respData}"
