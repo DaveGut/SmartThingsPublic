@@ -26,16 +26,19 @@ TP-Link devices; primarily various users on GitHub.com.
 			using separate files by model only.
 		b.	User file-internal selection of Energy Monitor
 			function enabling.
+	===== Plug/Switch Type.  DO NOT EDIT ====================*/
+	def deviceType = "Plug-Switch"			//	Plug/Switch
+//	def deviceType = "Dimming Switch"		//	HS220 Only
 //	===== Hub or Cloud Installation =========================*/
-	//def installType = "Cloud"
+//	def installType = "Cloud"
 	def installType = "Hub"
 //	===========================================================
 
 metadata {
-	definition (name: "(${installType}) TP-Link Plug-Switch",
+	definition (name: "(${installType}) TP-Link ${deviceType}",
 				namespace: "davegut",
 				author: "Dave Gutheinz",
-				deviceType: "Plug-Switch",
+				deviceType: "${deviceType}",
 				energyMonitor: "Standard",
 				installType: "${installType}") {
 		capability "Switch"
@@ -43,6 +46,9 @@ metadata {
 		capability "polling"
 		capability "Sensor"
 		capability "Actuator"
+		if (deviceType == "Dimming Switch") {
+			capability "Switch Level"
+		}
 	}
 	tiles(scale: 2) {
 		multiAttributeTile(name:"switch", type: "lighting", width: 6, height: 4, canChangeIcon: true){
@@ -55,6 +61,11 @@ metadata {
 				nextState:"waiting"
 				attributeState "commsError", label:'Comms Error', action:"switch.on", icon:"st.switches.switch.off", backgroundColor:"#e86d13",
 				nextState:"waiting"
+            }
+			if (deviceType == "Dimming Switch") {
+				tileAttribute ("device.level", key: "SLIDER_CONTROL") {
+					attributeState "level", label: "Brightness: ${currentValue}", action:"switch level.setLevel", range: "(1..100)"
+				}
 			}
  			tileAttribute ("deviceError", key: "SECONDARY_CONTROL") {
 				attributeState "deviceError", label: '${currentValue}'
@@ -70,10 +81,11 @@ metadata {
 	}
 
 	def rates = [:]
+	rates << ["1" : "Refresh every minutes (Not Recommended)"]
 	rates << ["5" : "Refresh every 5 minutes"]
-	rates << ["10" : "Refresh every 10 minutes"]	
+	rates << ["10" : "Refresh every 10 minutes"]
 	rates << ["15" : "Refresh every 15 minutes"]
-	rates << ["30" : "Refresh every 30 minutes"]
+	rates << ["30" : "Refresh every 30 minutes (Recommended)"]
 
 	preferences {
 		if (installType == "Hub") {
@@ -98,6 +110,10 @@ def update() {
 	state.installType = metadata.definition.installType
 	unschedule()
 	switch(refreshRate) {
+		case "1":
+			runEvery1Minute(refresh)
+			log.info "Refresh Scheduled for every minute"
+			break
 		case "5":
 			runEvery5Minutes(refresh)
 			log.info "Refresh Scheduled for every 5 minutes"
@@ -134,6 +150,14 @@ def off() {
 	sendCmdtoServer('{"system":{"set_relay_state":{"state": 0}}}', "deviceCommand", "commandResponse")
 }
 
+def setLevel(percentage) {
+	percentage = percentage as int
+    if (percentage == 0) {
+    	percentage = 1
+    }
+	sendCmdtoServer("""{"smartlife.iot.dimmer":{"set_brightness":{"brightness":${percentage}}}}""", "deviceCommand", "commandResponse")
+}
+
 def poll() {
 	sendCmdtoServer('{"system":{"get_sysinfo":{}}}', "deviceCommand", "commandResponse")
 }
@@ -144,14 +168,19 @@ def refresh(){
 
 def commandResponse(cmdResponse){
 	if (cmdResponse.system.set_relay_state == null) {
-		def status = cmdResponse.system.get_sysinfo.relay_state
-		if (status == 1) {
-			status = "on"
+		def onOff = cmdResponse.system.get_sysinfo.relay_state
+		if (onOff == 1) {
+			onOff = "on"
 		} else {
-			status = "off"
+			onOff = "off"
 		}
-		log.info "${device.name} ${device.label}: Power: ${status}"
-		sendEvent(name: "switch", value: status)
+        def level = "0"
+		if (deviceType == "Dimming Switch") {
+			level = cmdResponse.system.get_sysinfo.brightness
+		 	sendEvent(name: "level", value: level)
+		}
+		sendEvent(name: "switch", value: onOff)
+		log.info "${device.name} ${device.label}: Power: ${onOff} / Dimmer Level: ${level}%"
     } else {
 		refresh()
     }

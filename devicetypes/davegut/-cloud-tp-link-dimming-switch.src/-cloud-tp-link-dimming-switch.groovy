@@ -27,8 +27,8 @@ TP-Link devices; primarily various users on GitHub.com.
 		b.	User file-internal selection of Energy Monitor
 			function enabling.
 	===== Plug/Switch Type.  DO NOT EDIT ====================*/
-	def deviceType = "Plug-Switch"			//	Plug/Switch
-//	def deviceType = "Dimming Switch"		//	HS220 Only
+//	def deviceType = "Plug-Switch"			//	Plug/Switch
+	def deviceType = "Dimming Switch"		//	HS220 Only
 //	===== Hub or Cloud Installation =========================*/
 	def installType = "Cloud"
 	//def installType = "Hub"
