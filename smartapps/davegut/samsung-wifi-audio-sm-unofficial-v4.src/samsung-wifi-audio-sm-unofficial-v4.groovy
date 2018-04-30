@@ -52,21 +52,6 @@ def mainPage() {
 		uninstall: true){
 		section(intro) {}
 		section(page1) {}
-        section {
-			input "tts_1", "capability.musicPlayer", title: "Select tts_1 Speaker", required: false
-		}
-        section {
-			input "tts_2", "capability.musicPlayer", title: "Select tts_2 Speaker", required: false
-		}
-        section {
-			input "tts_3", "capability.musicPlayer", title: "Select tts_3 Speaker", required: false
-		}
-        section {
-			input "tts_4", "capability.musicPlayer", title: "Select tts_4 Speaker", required: false
-		}
-        section {
-			input "tts_5", "capability.musicPlayer", title: "Select tts_5 Speaker", required: false
-		}
 	}
 }
 
