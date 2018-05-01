@@ -1215,7 +1215,7 @@ def setTrackDescription() {
 def getPlayTime() {
 	def update = state.updateTrackDescription
 	if(update == "no") {
-		log.debug "getPlayTime: schedSetTrackDescription turned off"
+		log.info "getPlayTime: schedSetTrackDescription turned off"
 		return
 	} else {
 		GetCurrentPlayTime()
