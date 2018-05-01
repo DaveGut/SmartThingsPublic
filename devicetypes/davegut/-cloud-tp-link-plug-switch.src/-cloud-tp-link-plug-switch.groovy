@@ -159,31 +159,31 @@ def setLevel(percentage) {
 }
 
 def poll() {
-	sendCmdtoServer('{"system":{"get_sysinfo":{}}}', "deviceCommand", "commandResponse")
+	sendCmdtoServer('{"system":{"get_sysinfo":{}}}', "deviceCommand", "refreshResponse")
 }
 
 def refresh(){
-	sendCmdtoServer('{"system":{"get_sysinfo":{}}}', "deviceCommand", "commandResponse")
+	sendCmdtoServer('{"system":{"get_sysinfo":{}}}', "deviceCommand", "refreshResponse")
 }
 
-def commandResponse(cmdResponse){
-	if (cmdResponse.system.set_relay_state == null) {
-		def onOff = cmdResponse.system.get_sysinfo.relay_state
-		if (onOff == 1) {
-			onOff = "on"
-		} else {
-			onOff = "off"
-		}
-        def level = "0"
-		if (state.deviceType == "Dimming Switch") {
-			level = cmdResponse.system.get_sysinfo.brightness
-		 	sendEvent(name: "level", value: level)
-		}
-		sendEvent(name: "switch", value: onOff)
-		log.info "${device.name} ${device.label}: Power: ${onOff} / Dimmer Level: ${level}%"
-    } else {
-		refresh()
-    }
+def commandResponse(cmdResponse) {
+	refresh()
+}
+
+def refreshResponse(cmdResponse){
+	def onOff = cmdResponse.system.get_sysinfo.relay_state
+	if (onOff == 1) {
+		onOff = "on"
+	} else {
+		onOff = "off"
+	}
+	sendEvent(name: "switch", value: onOff)
+	def level = "0"
+	if (state.deviceType == "Dimming Switch") {
+		level = cmdResponse.system.get_sysinfo.brightness
+	 	sendEvent(name: "level", value: level)
+	}
+	log.info "${device.name} ${device.label}: Power: ${onOff} / Dimmer Level: ${level}%"
 }
 
 //	----- SEND COMMAND TO CLOUD VIA SM -----
@@ -243,6 +243,10 @@ def actionDirector(action, cmdResponse) {
 	switch(action) {
 		case "commandResponse":
 			commandResponse(cmdResponse)
+			break
+
+		case "refreshResponse":
+			refreshResponse(cmdResponse)
 			break
 
 		default:
