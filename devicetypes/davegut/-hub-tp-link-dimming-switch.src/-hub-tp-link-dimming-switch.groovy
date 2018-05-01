@@ -175,7 +175,7 @@ def commandResponse(cmdResponse){
 			onOff = "off"
 		}
         def level = "0"
-		if (deviceType == "Dimming Switch") {
+		if (state.deviceType == "Dimming Switch") {
 			level = cmdResponse.system.get_sysinfo.brightness
 		 	sendEvent(name: "level", value: level)
 		}
