@@ -177,6 +177,7 @@ def addDevices() {
 	def tpLinkModel = [:]
 	//	Plug-Switch Devices (no energy monitor capability)
 	tpLinkModel << ["HS100" : "(Cloud) TP-Link Plug-Switch"]			//	HS100
+	tpLinkModel << ["HS103" : "(Cloud) TP-Link Plug-Switch"]			//	HS103
 	tpLinkModel << ["HS105" : "(Cloud) TP-Link Plug-Switch"]			//	HS105
 	tpLinkModel << ["HS200" : "(Cloud) TP-Link Plug-Switch"]			//	HS200
 	tpLinkModel << ["HS210" : "(Cloud) TP-Link Plug-Switch"]			//	HS210
