@@ -191,12 +191,15 @@ def addDevices() {
 	tpLinkModel << ["KB100" : "(Cloud) TP-Link SoftWhite Bulb"]			//	KB100
 	tpLinkModel << ["LB100" : "(Cloud) TP-Link SoftWhite Bulb"]			//	LB100
 	tpLinkModel << ["LB110" : "(Cloud) TP-Link SoftWhite Bulb"]			//	LB110
+	tpLinkModel << ["KL110" : "(Cloud) TP-Link SoftWhite Bulb"]			//	KL110
 	tpLinkModel << ["LB200" : "(Cloud) TP-Link SoftWhite Bulb"]			//	LB200
 	//	Tunable White Bulbs
 	tpLinkModel << ["LB120" : "(Cloud) TP-Link TunableWhite Bulb"]		//	LB120
+	tpLinkModel << ["KL120" : "(Cloud) TP-Link TunableWhite Bulb"]		//	KL120
 	//	Color Bulbs
 	tpLinkModel << ["KB130" : "(Cloud) TP-Link Color Bulb"]				//	KB130
 	tpLinkModel << ["LB130" : "(Cloud) TP-Link Color Bulb"]				//	LB130
+	tpLinkModel << ["KL130" : "(Cloud) TP-Link Color Bulb"]				//	KL130
 	tpLinkModel << ["LB230" : "(Cloud) TP-Link Color Bulb"]				//	LB230
 
 	def hub = location.hubs[0]
