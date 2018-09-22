@@ -211,6 +211,7 @@ def setModeCircadian() {
 }
 
 def setColor(Map color) {
+log.debug color
 	def hue = color.hue * 3.6 as int
 	def saturation = color.saturation as int
 	sendCmdtoServer("""{"smartlife.iot.smartbulb.lightingservice":{"transition_light_state":{"ignore_default":1,"on_off":1,"color_temp":0,"hue":${hue},"saturation":${saturation}}}}""", "deviceCommand", "commandResponse")
@@ -226,8 +227,8 @@ def refresh(){
 
 def commandResponse(cmdResponse){
 	def status
-	def respType = cmdResponse.toString().substring(0,9)
-	if (respType == "[smartlif") {
+	def respType = cmdResponse.toString().substring(1,10)
+	if (respType == "smartlife") {
 		status =  cmdResponse["smartlife.iot.smartbulb.lightingservice"]["transition_light_state"]
 	} else {
 		status = cmdResponse.system.get_sysinfo.light_state

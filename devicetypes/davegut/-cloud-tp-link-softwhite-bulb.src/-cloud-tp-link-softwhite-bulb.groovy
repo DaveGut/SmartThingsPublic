@@ -221,8 +221,8 @@ def refresh(){
 
 def commandResponse(cmdResponse){
 	def status
-	def respType = cmdResponse.toString().substring(0,9)
-	if (respType == "[smartlif") {
+	def respType = cmdResponse.toString().substring(1,10)
+	if (respType == "smartlife") {
 		status =  cmdResponse["smartlife.iot.smartbulb.lightingservice"]["transition_light_state"]
 	} else {
 		status = cmdResponse.system.get_sysinfo.light_state
