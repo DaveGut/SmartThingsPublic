@@ -1,8 +1,8 @@
-/*	TP Link Bulbs Device Handler, 2018 Version 2
-	Copyright 2018 Dave Gutheinz
+/*	TP Link Bulbs Device Handler, 2018 Version 3
+	Copyright 2018 Dave Gutheinz and Anthony Ramirez
 
 Licensed under the Apache License, Version 2.0(the "License");
-you may not use this file except in compliance with the
+you may not use this  file except in compliance with the
 License. You may obtain a copy of the License at:
 
 	http://www.apache.org/licenses/LICENSE-2.0
@@ -16,29 +16,23 @@ License.
 
 Discalimer:  This Service Manager and the associated Device 
 Handlers are in no way sanctioned or supported by TP-Link.  
-All development is based upon open-source data on the 
+All  development is based upon open-source data on the 
 TP-Link devices; primarily various users on GitHub.com.
 
 	===== History ============================================
-2018-01-31	Update to Version 2
-	a.	Common file content for all bulb implementations,
-		using separate files by model only.
-	b.	User file-internal selection of Energy Monitor
-		function enabling.
-2018-02-17	Updated Energy Monitor Functions
-	a.	Allowed for full month collection in previous month
-	b.	Cleaned-up algorithm to use Groovy date.
-2018-02-19	Completed Energy Monitor tuning
-	a.  Fixed March 1, 2 issue where data would not be
-		captured
-	b.	Update remaining code.
-2018-04-22	Update setCurrentDate to eliminate error for some users.
+2018-10-14	Update to Version 3.  Initial compatibility with
+			the Classic and new SmartThings Mobile App.  No
+            update to Service Manager.  Service Manager must
+            be installed via the SmartThings Classic App.
+            Thanks to Anthony Ramirez for providing the
+            technical information for this update.
+
 	===== Bulb Identifier.  DO NOT EDIT ====================*/
 	def deviceType = "SoftWhite Bulb"	//	Soft White
-	//def deviceType = "TunableWhite Bulb"	//	ColorTemp
-	//def deviceType = "Color Bulb"			//	Color
+//	def deviceType = "TunableWhite Bulb"	//	ColorTemp
+//	def deviceType = "Color Bulb"			//	Color
 //	===== Hub or Cloud Installation ==========================
-	//def installType = "Cloud"
+//	def installType = "Cloud"
 	def installType = "Hub"
 //	==========================================================
 
@@ -48,6 +42,9 @@ metadata {
 				author: "Dave Gutheinz",
 				deviceType: "${deviceType}",
 				energyMonitor: "EnergyMonitor",
+				ocfDeviceType: "oic.d.light",
+				mnmn: "SmartThings",
+				vid: "generic-rgbw-color-bulb",
 				installType: "${installType}") {
 		capability "Switch"
 		capability "Switch Level"
@@ -55,6 +52,7 @@ metadata {
 		capability "polling"
 		capability "Sensor"
 		capability "Actuator"
+		capability "Health Check"
 		if (deviceType == "TunableWhite Bulb" || "Color Bulb") {
 			capability "Color Temperature"
 			command "setModeNormal"
@@ -76,13 +74,13 @@ metadata {
 	tiles(scale:2) {
 		multiAttributeTile(name:"switch", type: "lighting", width: 6, height: 4, canChangeIcon: true){
 			tileAttribute ("device.switch", key: "PRIMARY_CONTROL") {
-				attributeState "on", label:'${name}', action:"switch.off", icon:"st.switches.light.on", backgroundColor:"#00a0dc",
+				attributeState "on", label:'${name}', action:"switch.off", icon:"st.Lighting.light13", backgroundColor:"#00a0dc",
 				nextState:"waiting"
-				attributeState "off", label:'${name}', action:"switch.on", icon:"st.switches.light.off", backgroundColor:"#ffffff",
+				attributeState "off", label:'${name}', action:"switch.on", icon:"st.Lighting.light13", backgroundColor:"#ffffff",
 				nextState:"waiting"
-				attributeState "waiting", label:'${name}', action:"switch.on", icon:"st.switches.light.off", backgroundColor:"#15EE10",
+				attributeState "waiting", label:'${name}', action:"switch.on", icon:"st.Lighting.light13", backgroundColor:"#15EE10",
 				nextState:"waiting"
-				attributeState "commsError", label: 'Comms Error', action:"switch.on", icon:"st.switches.light.off", backgroundColor:"#e86d13",
+				attributeState "commsError", label: 'Comms Error', action:"switch.on", icon:"st.Lighting.light13", backgroundColor:"#e86d13",
 				nextState:"waiting"
 			}
 			tileAttribute ("deviceError", key: "SECONDARY_CONTROL") {
@@ -104,7 +102,7 @@ metadata {
 		
 		if (deviceType == "TunableWhite Bulb") {
 			controlTile("colorTempSliderControl", "device.colorTemperature", "slider", width: 2, height: 1, inactiveLabel: false,
-			range:"(2500..6500)") {
+			range:"(2700..6500)") {
 				state "colorTemperature", action:"color temperature.setColorTemperature"
 			}
 		} else if (deviceType == "Color Bulb") {
@@ -173,10 +171,10 @@ metadata {
 	}
 
 	def rates = [:]
+	rates << ["1" : "Refresh every minutes (Not Recommended)"]
 	rates << ["5" : "Refresh every 5 minutes"]
 	rates << ["10" : "Refresh every 10 minutes"]
 	rates << ["15" : "Refresh every 15 minutes"]
-	rates << ["30" : "Refresh every 30 minutes"]
 
 	preferences {
 		if (installType == "Hub") {
@@ -189,6 +187,21 @@ metadata {
 }
 
 //	===== Update when installed or setting changed =====
+/*	Health Check Implementation
+	1.	Each time a command is sent, the DeviceWatch-Status
+		is set to on- or off-line.
+	2.	Refresh is run every 15 minutes to provide a min
+		cueing of this.
+	3.	Is valid for either hub or cloud based device.*/
+def initialize() {
+	log.trace "Initialized..."
+	sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson(["protocol":"cloud", "scheme":"untracked"]), displayed: false)
+}
+
+def ping() {
+	refresh()
+}
+
 def installed() {
 	update()
 }
@@ -205,6 +218,10 @@ def update() {
 	state.emeterText = "smartlife.iot.common.emeter"
 	state.getTimeText = "smartlife.iot.common.timesetting"
 	switch(refreshRate) {
+		case "1":
+			runEvery1Minute(refresh)
+			log.info "Refresh Scheduled for every minute"
+			break
 		case "5":
 			runEvery5Minutes(refresh)
 			log.info "Refresh Scheduled for every 5 minutes"
@@ -213,13 +230,9 @@ def update() {
 			runEvery10Minutes(refresh)
 			log.info "Refresh Scheduled for every 10 minutes"
 			break
-		case "15":
+		default:
 			runEvery15Minutes(refresh)
 			log.info "Refresh Scheduled for every 15 minutes"
-			break
-		default:
-			runEvery30Minutes(refresh)
-			log.info "Refresh Scheduled for every 30 minutes"
 	}
 	if (lightTransTime >= 0 && lightTransTime <= 60) {
 		state.transTime = 1000 * lightTransTime
@@ -287,6 +300,7 @@ def poll() {
 def refresh(){
 	sendCmdtoServer('{"system":{"get_sysinfo":{}}}', "deviceCommand", "commandResponse")
 	runIn(2, getPower)
+	runIn(7, getConsumption)
 }
 
 def commandResponse(cmdResponse){
@@ -327,12 +341,13 @@ def commandResponse(cmdResponse){
 def getPower(){
 	if (state.emon == "EnergyMonitor") {
 		sendCmdtoServer("""{"${state.emeterText}":{"get_realtime":{}}}""", "deviceCommand", "energyMeterResponse")
-		runIn(5, getConsumption)
 	}
 }
 
 def energyMeterResponse(cmdResponse) {
-	if (cmdResponse[state.emeterText].err_code == -1) {
+	if (state.emon == "Standard") {
+		return
+	} else if (cmdResponse[state.emeterText].err_code == -1) {
 		log.error "${device.name} ${device.label}: does not support Energy Monitor.  Energy Monitor disabled."
 		state.emon == "Standard"
 		unschedule(getEnergyStats)
@@ -512,7 +527,6 @@ def engrStatsResponse(cmdResponse) {
 	sendEvent(name: "weekAvgE", value: wkAvgEnergy)
 }
 
-//	===== Obtain Week and Month Data =====
 def setCurrentDate() {
 	sendCmdtoServer('{"smartlife.iot.common.timesetting":{"get_time":null}}', "deviceCommand", "currentDateResponse")
 }
@@ -533,10 +547,14 @@ def currentDateResponse(cmdResponse) {
 
 //	===== Send the Command to the Cloud or Bridge =====
 private sendCmdtoServer(command, hubCommand, action) {
-	if (state.installType == "Cloud") {
-		sendCmdtoCloud(command, hubCommand, action)
-	} else {
-		sendCmdtoHub(command, hubCommand, action)
+	try {
+		if (state.installType == "Cloud") {
+			sendCmdtoCloud(command, hubCommand, action)
+		} else {
+			sendCmdtoHub(command, hubCommand, action)
+		}
+	} catch (ex) {
+		log.error "Sending Command Exception:", ex
 	}
 }
 
@@ -550,8 +568,10 @@ private sendCmdtoCloud(command, hubCommand, action){
 		log.error "${device.name} ${device.label}: ${errMsg}"
 		sendEvent(name: "switch", value: "commsError", descriptionText: errMsg)
 		sendEvent(name: "deviceError", value: errMsg)
+		sendEvent(name: "DeviceWatch-DeviceStatus", value: "offline", displayed: false, isStateChange: true)
 		action = ""
 	} else {
+		sendEvent(name: "DeviceWatch-DeviceStatus", value: "online", displayed: false, isStateChange: true)
 		sendEvent(name: "deviceError", value: "OK")
 	}
 	actionDirector(action, cmdResponse)
@@ -578,9 +598,11 @@ def hubResponseParse(response) {
 		log.error "$device.name $device.label: Communications Error"
 		sendEvent(name: "switch", value: "offline", descriptionText: "ERROR - OffLine in hubResponseParse")
 		sendEvent(name: "deviceError", value: "TCP Timeout in Hub")
+		sendEvent(name: "DeviceWatch-DeviceStatus", value: "offline", displayed: false, isStateChange: true)
 	} else {
-		actionDirector(action, cmdResponse)
 		sendEvent(name: "deviceError", value: "OK")
+		sendEvent(name: "DeviceWatch-DeviceStatus", value: "online", displayed: false, isStateChange: true)
+		actionDirector(action, cmdResponse)
 	}
 }
 

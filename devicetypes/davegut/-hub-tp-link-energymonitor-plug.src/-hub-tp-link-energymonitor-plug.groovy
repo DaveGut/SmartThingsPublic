@@ -1,6 +1,6 @@
 /*
-TP-Link Plug and Switch Device Handler, 2018, Version 2
-Copyright 2018 Dave Gutheinz
+TP-Link Plug and Switch Device Handler, 2018, Version 3
+	Copyright 2018 Dave Gutheinz and Anthony Ramirez
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the
@@ -20,37 +20,35 @@ Handlers are in no way sanctioned or supported by TP-Link.
 All development is based upon open-source data on the 
 TP-Link devices; primarily various users on GitHub.com.
 
-	===== History =============================================
-2018-01-31	Update to Version 2
-	a.	Common file content for all bulb implementations,
-		using separate files by model only.
-	b.	User file-internal selection of Energy Monitor
-		function enabling.
-2018-02-17	Updated Energy Monitor Functions
-	a.	Allowed for full month collection in previous month
-	b.	Cleaned-up algorithm to use Groovy date.
-2018-02-19	Completed Energy Monitor tuning
-	a.  Fixed March 1, 2 issue where data would not be
-		captured
-	b.	Update remaining code.
-2018-04-22	Update setCurrentDate to eliminate error for some users.
+	===== History ============================================
+2018-10-14	Update to Version 3.  Initial compatibility with
+			the Classic and new SmartThings Mobile App.  No
+            update to Service Manager.  Service Manager must
+            be installed via the SmartThings Classic App.
+            Thanks to Anthony Ramirez for providing the
+            technical information for this update.
+
 //	===== Hub or Cloud Installation =========================*/
-	//def installType = "Cloud"
+//	def installType = "Cloud"
 	def installType = "Hub"
 //	===========================================================
 
 metadata {
 	definition (name: "(${installType}) TP-Link EnergyMonitor Plug",
 				namespace: "davegut",
-				author: "Dave Gutheinz",
+				author: "Dave Gutheinz and Anthony Ramirez",
 				deviceType: "EnergyMonitor Plug",
 				energyMonitor: "EnergyMonitor",
+				ocfDeviceType: "oic.d.smartplug",
+				mnmn: "SmartThings",
+				vid: "generic-switch-power-energy",
 				installType: "${installType}") {
 		capability "Switch"
 		capability "refresh"
 		capability "polling"
 		capability "Sensor"
 		capability "Actuator"
+		capability "Health Check"
 		capability "Power Meter"
 		command "getPower"
 		capability "Energy Meter"
@@ -116,10 +114,10 @@ metadata {
 	}
 
 	def rates = [:]
+	rates << ["1" : "Refresh every minutes (Not Recommended)"]
 	rates << ["5" : "Refresh every 5 minutes"]
-	rates << ["10" : "Refresh every 10 minutes"]	
+	rates << ["10" : "Refresh every 10 minutes"]
 	rates << ["15" : "Refresh every 15 minutes"]
-	rates << ["30" : "Refresh every 30 minutes"]
 
 	preferences {
 		if (installType == "Hub") {
@@ -131,6 +129,21 @@ metadata {
 }
 
 //	===== Update when installed or setting changed =====
+/*	Health Check Implementation
+	1.	Each time a command is sent, the DeviceWatch-Status
+		is set to on- or off-line.
+	2.	Refresh is run every 15 minutes to provide a min
+		cueing of this.
+	3.	Is valid for either hub or cloud based device.*/
+def initialize() {
+	log.trace "Initialized..."
+	sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson(["protocol":"cloud", "scheme":"untracked"]), displayed: false)
+}
+
+def ping() {
+	refresh()
+}
+
 def installed() {
 	update()
 }
@@ -147,6 +160,10 @@ def update() {
 	state.getTimeText = "time"
 	unschedule()
 	switch(refreshRate) {
+		case "1":
+			runEvery1Minute(refresh)
+			log.info "Refresh Scheduled for every minute"
+			break
 		case "5":
 			runEvery5Minutes(refresh)
 			log.info "Refresh Scheduled for every 5 minutes"
@@ -155,13 +172,9 @@ def update() {
 			runEvery10Minutes(refresh)
 			log.info "Refresh Scheduled for every 10 minutes"
 			break
-		case "15":
+		default:
 			runEvery15Minutes(refresh)
 			log.info "Refresh Scheduled for every 15 minutes"
-			break
-		default:
-			runEvery30Minutes(refresh)
-			log.info "Refresh Scheduled for every 30 minutes"
 	}
 	schedule("0 05 0 * * ?", setCurrentDate)
 	schedule("0 10 0 * * ?", getEnergyStats)
@@ -189,6 +202,11 @@ def off() {
 	runIn(2, refresh)
 }
 
+def getSystemInfo() {
+	sendCmdtoServer('{"system":{"get_sysinfo":{}}}', "deviceCommand", "commandResponse")
+    runIn(2, getPower)
+}
+
 def poll() {
 	sendCmdtoServer('{"system":{"get_sysinfo":{}}}', "deviceCommand", "commandResponse")
 }
@@ -196,6 +214,7 @@ def poll() {
 def refresh(){
 	sendCmdtoServer('{"system":{"get_sysinfo":{}}}', "deviceCommand", "commandResponse")
 	runIn(2, getPower)
+    runIn(7, getConsumption)
 }
 
 def commandResponse(cmdResponse){
@@ -216,7 +235,6 @@ def commandResponse(cmdResponse){
 //	===== Get Current Energy Data =====
 def getPower(){
 	sendCmdtoServer("""{"${state.emeterText}":{"get_realtime":{}}}""", "deviceCommand", "energyMeterResponse")
-	runIn(5, getConsumption)
 }
 
 def energyMeterResponse(cmdResponse) {
@@ -283,10 +301,7 @@ def getPrevMonth() {
 		prevMonth = prevMonth + 1
 		runIn(4, getJan)
 	}
-//	sendCmdtoServer("""{"${state.emeterText}":{"get_daystat":{"month": ${prevMonth}, "year": ${state.yearStart}}}}""", "emeterCmd", "engrStatsResponse")
-//	===== SIMULATOR COMMANDS ================================================
-sendCmdtoServer("""{"${state.emeterText}":{"get_daystat":{"month": ${prevMonth}, "year": ${state.yearStart}}}}""", "emeterCmd", "UseJanWatts")
-//	===== SIMULATOR COMMANDS ================================================
+	sendCmdtoServer("""{"${state.emeterText}":{"get_daystat":{"month": ${prevMonth}, "year": ${state.yearStart}}}}""", "emeterCmd", "UseJanWatts")
 }
 
 def getJan() {
@@ -431,8 +446,10 @@ private sendCmdtoCloud(command, hubCommand, action){
 		log.error "${device.name} ${device.label}: ${errMsg}"
 		sendEvent(name: "switch", value: "commsError", descriptionText: errMsg)
 		sendEvent(name: "deviceError", value: errMsg)
+		sendEvent(name: "DeviceWatch-DeviceStatus", value: "offline", displayed: false, isStateChange: true)
 		action = ""
 	} else {
+		sendEvent(name: "DeviceWatch-DeviceStatus", value: "online", displayed: false, isStateChange: true)
 		sendEvent(name: "deviceError", value: "OK")
 	}
 		actionDirector(action, cmdResponse)
@@ -459,9 +476,11 @@ def hubResponseParse(response) {
 		log.error "$device.name $device.label: Communications Error"
 		sendEvent(name: "switch", value: "offline", descriptionText: "ERROR at hubResponseParse TCP Timeout")
 		sendEvent(name: "deviceError", value: "TCP Timeout in Hub")
+		sendEvent(name: "DeviceWatch-DeviceStatus", value: "offline", displayed: false, isStateChange: true)
 	} else {
-		actionDirector(action, cmdResponse)
 		sendEvent(name: "deviceError", value: "OK")
+		sendEvent(name: "DeviceWatch-DeviceStatus", value: "online", displayed: false, isStateChange: true)
+		actionDirector(action, cmdResponse)
 	}
 }
 

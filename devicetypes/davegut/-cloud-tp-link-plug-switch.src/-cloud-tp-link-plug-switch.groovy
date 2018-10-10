@@ -1,6 +1,6 @@
 /*
-TP-Link Plug and Switch Device Handler, 2018, Version 2
-Copyright 2018 Dave Gutheinz
+TP-Link Plug and Switch Device Handler, 2018, Version 3
+	Copyright 2018 Dave Gutheinz and Anthony Ramirez
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this  file except in compliance with the
@@ -20,32 +20,38 @@ Handlers are in no way sanctioned or supported by TP-Link.
 All  development is based upon open-source data on the 
 TP-Link devices; primarily various users on GitHub.com.
 
-	===== History =============================================
-2018-01-31	Update to Version 2
-		a.	Common file content for all bulb implementations,
-			using separate files by model only.
-		b.	User file-internal selection of Energy Monitor
-			function enabling.
+	===== History ============================================
+2018-10-14	Update to Version 3.  Initial compatibility with
+			the Classic and new SmartThings Mobile App.  No
+            update to Service Manager.  Service Manager must
+            be installed via the SmartThings Classic App.
+            Thanks to Anthony Ramirez for providing the
+            technical information for this update.
+
 	===== Plug/Switch Type.  DO NOT EDIT ====================*/
 	def deviceType = "Plug-Switch"			//	Plug/Switch
 //	def deviceType = "Dimming Switch"		//	HS220 Only
 //	===== Hub or Cloud Installation =========================*/
 	def installType = "Cloud"
-	//def installType = "Hub"
+//	def installType = "Hub"
 //	===========================================================
 
 metadata {
 	definition (name: "(${installType}) TP-Link ${deviceType}",
 				namespace: "davegut",
-				author: "Dave Gutheinz",
+				author: "Dave Gutheinz and Anthony Ramirez",
 				deviceType: "${deviceType}",
 				energyMonitor: "Standard",
+				ocfDeviceType: "oic.d.smartplug",
+				mnmn: "SmartThings",
+				vid: "generic-switch-power",
 				installType: "${installType}") {
 		capability "Switch"
 		capability "refresh"
 		capability "polling"
 		capability "Sensor"
 		capability "Actuator"
+		capability "Health Check"
 		if (deviceType == "Dimming Switch") {
 			capability "Switch Level"
 		}
@@ -85,7 +91,6 @@ metadata {
 	rates << ["5" : "Refresh every 5 minutes"]
 	rates << ["10" : "Refresh every 10 minutes"]
 	rates << ["15" : "Refresh every 15 minutes"]
-	rates << ["30" : "Refresh every 30 minutes (Recommended)"]
 
 	preferences {
 		if (installType == "Hub") {
@@ -97,6 +102,21 @@ metadata {
 }
 
 //	===== Update when installed or setting changed =====
+/*	Health Check Implementation
+	1.	Each time a command is sent, the DeviceWatch-Status
+		is set to on- or off-line.
+	2.	Refresh is run every 15 minutes to provide a min
+		cueing of this.
+	3.	Is valid for either hub or cloud based device.*/
+def initialize() {
+	log.trace "Initialized..."
+	sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson(["protocol":"cloud", "scheme":"untracked"]), displayed: false)
+}
+
+def ping() {
+	refresh()
+}
+
 def installed() {
 	update()
 }
@@ -122,13 +142,9 @@ def update() {
 			runEvery10Minutes(refresh)
 			log.info "Refresh Scheduled for every 10 minutes"
 			break
-		case "15":
+		default:
 			runEvery15Minutes(refresh)
 			log.info "Refresh Scheduled for every 15 minutes"
-			break
-		default:
-			runEvery30Minutes(refresh)
-			log.info "Refresh Scheduled for every 30 minutes"
 	}
 	runIn(5, refresh)
 }
@@ -205,8 +221,10 @@ private sendCmdtoCloud(command, hubCommand, action){
 		log.error "${device.name} ${device.label}: ${errMsg}"
 		sendEvent(name: "switch", value: "commsError", descriptionText: errMsg)
 		sendEvent(name: "deviceError", value: errMsg)
+		sendEvent(name: "DeviceWatch-DeviceStatus", value: "offline", displayed: false, isStateChange: true)
 		action = ""
 	} else {
+		sendEvent(name: "DeviceWatch-DeviceStatus", value: "online", displayed: false, isStateChange: true)
 		sendEvent(name: "deviceError", value: "OK")
 	}
 		actionDirector(action, cmdResponse)
@@ -233,9 +251,11 @@ def hubResponseParse(response) {
 		log.error "$device.name $device.label: Communications Error"
 		sendEvent(name: "switch", value: "offline", descriptionText: "ERROR at hubResponseParse TCP Timeout")
 		sendEvent(name: "deviceError", value: "TCP Timeout in Hub")
+		sendEvent(name: "DeviceWatch-DeviceStatus", value: "offline", displayed: false, isStateChange: true)
 	} else {
-		actionDirector(action, cmdResponse)
 		sendEvent(name: "deviceError", value: "OK")
+		sendEvent(name: "DeviceWatch-DeviceStatus", value: "online", displayed: false, isStateChange: true)
+		actionDirector(action, cmdResponse)
 	}
 }
 
@@ -250,7 +270,7 @@ def actionDirector(action, cmdResponse) {
 			break
 
 		default:
-			log.debug "at default"
+			log.debug "Interface Error.  See SmartApp and Device error message."
 	}
 }
 
