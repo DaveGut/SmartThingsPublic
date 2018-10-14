@@ -28,8 +28,8 @@ TP-Link devices; primarily various users on GitHub.com.
             technical information for this update.
 
 	===== Bulb Identifier.  DO NOT EDIT ====================*/
-//	def deviceType = "SoftWhite Bulb"	//	Soft White
-//	def deviceType = "TunableWhite Bulb"	//	ColorTemp
+//	def deviceType = "Soft White Bulb"	//	Soft White
+//	def deviceType = "Tunable White Bulb"	//	ColorTemp
 	def deviceType = "Color Bulb"			//	Color
 //	===== Hub or Cloud Installation ==========================
 //	def installType = "Cloud"
@@ -51,7 +51,7 @@ metadata {
 		capability "refresh"
 //		capability "polling"			//	Depreciated.
 		capability "Health Check"
-		if (deviceType != "SoftWhite Bulb") {
+		if (deviceType != "Soft White Bulb") {
 			capability "Color Temperature"
 			command "setModeNormal"
 			command "setModeCircadian"
@@ -91,7 +91,7 @@ metadata {
 			state "default", label:"Refresh", action:"refresh.refresh"
 		}
 		
-		if (deviceType == "TunableWhite Bulb") {
+		if (deviceType == "Tunable White Bulb") {
 			controlTile("colorTempSliderControl", "device.colorTemperature", "slider", width: 2, height: 1, inactiveLabel: false,
 			range:"(2700..6500)") {
 				state "colorTemperature", action:"color temperature.setColorTemperature"
@@ -113,7 +113,7 @@ metadata {
 		}
 
 		main("switch")
-		if (deviceType == "SoftWhite Bulb") {
+		if (deviceType == "Soft White Bulb") {
 			details("switch", "refresh")
 		} else {
 				details("switch", "colorTemp", "bulbMode", "refresh", 
@@ -271,11 +271,11 @@ def refreshResponse(cmdResponse){
  	sendEvent(name: "level", value: level)
 
     switch(state.deviceType) {
-    	case "SoftWhite Bulb":
+    	case "Soft White Bulb":
 	        log.info "$device.name $device.label: Power: ${onOff} / Brightness: ${level}%"
 			break
             
-        case "TuneableWhite Bulb":
+        case "Tuneable White Bulb":
 			def circadianMode = status.mode
 			def color_temp = status.color_temp
 			sendEvent(name: "circadianMode", value: circadianMode)

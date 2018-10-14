@@ -28,9 +28,9 @@ TP-Link devices; primarily various users on GitHub.com.
             technical information for this update.
 
 	===== Bulb Identifier.  DO NOT EDIT ====================*/
-//	def deviceType = "Soft White Bulb"	//	Soft White
+	def deviceType = "Soft White Bulb"	//	Soft White
 //	def deviceType = "Tunable White Bulb"	//	ColorTemp
-	def deviceType = "Color Bulb"			//	Color
+//	def deviceType = "Color Bulb"			//	Color
 //	===== Hub or Cloud Installation ==========================
 	def installType = "Cloud"
 //	def installType = "Hub"
