@@ -176,17 +176,17 @@ def getDevices() {
 def addDevices() {
 	def tpLinkModel = [:]
 	//	Plug-Switch Devices (no energy monitor capability)
-	tpLinkModel << ["HS100" : "(Cloud) TP-Link Plug-Switch"]			//	HS100
-	tpLinkModel << ["HS103" : "(Cloud) TP-Link Plug-Switch"]			//	HS103
-	tpLinkModel << ["HS105" : "(Cloud) TP-Link Plug-Switch"]			//	HS105
-	tpLinkModel << ["HS200" : "(Cloud) TP-Link Plug-Switch"]			//	HS200
-	tpLinkModel << ["HS210" : "(Cloud) TP-Link Plug-Switch"]			//	HS210
-	tpLinkModel << ["KP100" : "(Cloud) TP-Link Plug-Switch"]			//	KP100
+	tpLinkModel << ["HS100" : "(Cloud) TP-Link Plug"]					//	HS100
+	tpLinkModel << ["HS103" : "(Cloud) TP-Link Plug"]					//	HS103
+	tpLinkModel << ["HS105" : "(Cloud) TP-Link Plug"]					//	HS105
+	tpLinkModel << ["HS200" : "(Cloud) TP-Link Switch"]					//	HS200
+	tpLinkModel << ["HS210" : "(Cloud) TP-Link Switch"]					//	HS210
+	tpLinkModel << ["KP100" : "(Cloud) TP-Link Plug"]					//	KP100
 	//	Dimming Plug Devices
 	tpLinkModel << ["HS220" : "(Cloud) TP-Link Dimming Switch"]			//	HS220
 	//	Energy Monitor Plugs
-	tpLinkModel << ["HS110" : "(Cloud) TP-Link EnergyMonitor Plug"]		//	HS110
-	tpLinkModel << ["HS115" : "(Cloud) TP-Link EnergyMonitor Plug"]		//	HS110
+	tpLinkModel << ["HS110" : "(Cloud) TP-Link Energy Monitor Plug"]	//	HS110
+	tpLinkModel << ["HS115" : "(Cloud) TP-Link Energy Monitor Plug"]	//	HS115
 	//	Soft White Bulbs
 	tpLinkModel << ["KB100" : "(Cloud) TP-Link SoftWhite Bulb"]			//	KB100
 	tpLinkModel << ["LB100" : "(Cloud) TP-Link SoftWhite Bulb"]			//	LB100
