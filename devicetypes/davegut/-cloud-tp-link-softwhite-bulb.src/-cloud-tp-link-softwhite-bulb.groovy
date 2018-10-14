@@ -49,18 +49,17 @@ metadata {
 		capability "Switch"
 		capability "Switch Level"
 		capability "refresh"
-		capability "polling"
-		capability "Sensor"
-		capability "Actuator"
+//		capability "polling"			//	Depreciated.
 		capability "Health Check"
-		if (deviceType == "TunableWhite Bulb" || "Color Bulb") {
+		if (deviceType != "SoftWhite Bulb") {
 			capability "Color Temperature"
 			command "setModeNormal"
 			command "setModeCircadian"
-			attribute "bulbMode", "string"
+			attribute "circadianMode", "string"
 		}
 		if (deviceType == "Color Bulb") {
-			capability "Color Control"
+            capability "Color Control"
+			capability "Color Mode"
 		}
 	}
 	tiles(scale:2) {
@@ -133,20 +132,14 @@ metadata {
 			input("deviceIP", "text", title: "Device IP", required: true, displayDuringSetup: true)
 			input("gatewayIP", "text", title: "Gateway IP", required: true, displayDuringSetup: true)
 		}
-		input name: "lightTransTime", type: "number", title: "Lighting Transition Time (seconds)", options: rates, description: "0 to 60 seconds", required: false
+        input name: "transitionTime", type: "enum", description: "", title: "Transition time", options: [[500:"500ms"],[1000:"1s"],[1500:"1.5s"],[2000:"2s"],[5000:"5s"]], defaultValue: 1000
 		input name: "refreshRate", type: "enum", title: "Refresh Rate", options: rates, description: "Select Refresh Rate", required: false
 	}
 }
 
 //	===== Update when installed or setting changed =====
-/*	Health Check Implementation
-	1.	Each time a command is sent, the DeviceWatch-Status
-		is set to on- or off-line.
-	2.	Refresh is run every 15 minutes to provide a min
-		cueing of this.
-	3.	Is valid for either hub or cloud based device.*/
 def initialize() {
-	log.trace "Initialized..."
+	log.info "Initialized ${device.label}..."
 	sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson(["protocol":"cloud", "scheme":"untracked"]), displayed: false)
 }
 
@@ -158,37 +151,24 @@ def installed() {
 	update()
 }
 
-def updated() {
-	runIn(2, update)
-}
-
 def update() {
+	log.info "Updated ${device.label}..."
 	state.deviceType = metadata.definition.deviceType
 	state.installType = metadata.definition.installType
 	unschedule()
-	switch(refreshRate) {
-		case "1":
-			runEvery1Minute(refresh)
-			log.info "Refresh Scheduled for every minute"
-			break
-		case "5":
-			runEvery5Minutes(refresh)
-			log.info "Refresh Scheduled for every 5 minutes"
-			break
-		case "10":
-			runEvery10Minutes(refresh)
-			log.info "Refresh Scheduled for every 10 minutes"
-			break
-		default:
-			runEvery15Minutes(refresh)
-			log.info "Refresh Scheduled for every 15 minutes"
-	}
-	if (lightTransTime >= 0 && lightTransTime <= 60) {
-		state.transTime = 1000 * lightTransTime
-	} else {
-		state.transTime = 5000
-	}
+    
+    //	Update Refresh Rate Preference
+    if (refreshRate) {
+    	setRefreshRate(refreshRate)
+    } else {
+    	setRefreshRate(30)
+    }
+
+	//	Update Light Transition Time Preference
+	setLightTransTime(transitionTime)
+
 	runIn(2, refresh)
+	runIn( 5, "initialize")
 }
 
 void uninstalled() {
@@ -209,11 +189,31 @@ def off() {
 }
 
 def setLevel(percentage) {
+    setLevel(percentage, state.transTime)
+}
+
+def setLevel(percentage, rate) {
+    if (percentage < 0 || percentage > 100) {
+        log.error "$device.name $device.label: Entered brightness is not from 0...100"
+        percentage = 50
+    }
 	percentage = percentage as int
-	sendCmdtoServer("""{"smartlife.iot.smartbulb.lightingservice":{"transition_light_state":{"ignore_default":1,"on_off":1,"brightness":${percentage},"transition_period":${state.transTime}}}}""", "deviceCommand", "commandResponse")
+    rate = rate.toInteger()
+	sendCmdtoServer("""{"smartlife.iot.smartbulb.lightingservice":{"transition_light_state":{"ignore_default":1,"on_off":1,"brightness":${percentage},"transition_period":${rate}}}}""", "deviceCommand", "commandResponse")
 }
 
 def setColorTemperature(kelvin) {
+    if (kelvin == null) kelvin = state.lastColorTemp
+	switch(state.deviceType) {
+    	case "TuneableWhite Bulb":
+		    if (kelvin < 2700) kelvin = 2700
+		    if (kelvin > 6500) kelvin = 6500
+ 	       break
+        
+        defalut:
+		    if (kelvin < 2500) kelvin = 2500
+		    if (kelvin > 9000) kelvin = 9000
+    }
 	kelvin = kelvin as int
 	sendCmdtoServer("""{"smartlife.iot.smartbulb.lightingservice":{"transition_light_state":{"ignore_default":1,"on_off":1,"color_temp": ${kelvin},"hue":0,"saturation":0}}}""", "deviceCommand", "commandResponse")
 }
@@ -226,28 +226,39 @@ def setModeCircadian() {
 	sendCmdtoServer("""{"smartlife.iot.smartbulb.lightingservice":{"transition_light_state":{"mode":"circadian"}}}""", "deviceCommand", "commandResponse")
 }
 
+def setHue(hue) {
+    if (hue == null) hue = state.lastHue
+    saturation = state.lastSaturation
+    setColor([hue: hue, saturation: saturation])
+}
+
+def setSaturation(saturation) {
+    if (saturation == null) saturation = state.lastSaturation
+    hue = state.lastHue
+    setColor([hue: hue, saturation: saturation])
+    
+}
+
 def setColor(Map color) {
+	if (color == null) {
+    	setColor([hue: state.lastHue, saturation: state.lastSaturation])
+        return
+    }
 	def hue = color.hue * 3.6 as int
 	def saturation = color.saturation as int
 	sendCmdtoServer("""{"smartlife.iot.smartbulb.lightingservice":{"transition_light_state":{"ignore_default":1,"on_off":1,"color_temp":0,"hue":${hue},"saturation":${saturation}}}}""", "deviceCommand", "commandResponse")
 }
 
-def poll() {
-	sendCmdtoServer('{"system":{"get_sysinfo":{}}}', "deviceCommand", "commandResponse")
-}
+//def poll() {		//	Depreciated.
+//	refresh()
+//}
 
 def refresh(){
-	sendCmdtoServer('{"system":{"get_sysinfo":{}}}', "deviceCommand", "commandResponse")
+	sendCmdtoServer('{"system":{"get_sysinfo":{}}}', "deviceCommand", "refreshResponse")
 }
 
-def commandResponse(cmdResponse){
-	def status
-	def respType = cmdResponse.toString().substring(1,10)
-	if (respType == "smartlife") {
-		status =  cmdResponse["smartlife.iot.smartbulb.lightingservice"]["transition_light_state"]
-	} else {
-		status = cmdResponse.system.get_sysinfo.light_state
-	}
+def refreshResponse(cmdResponse){
+	def status = cmdResponse.system.get_sysinfo.light_state
 	def onOff = status.on_off
 	if (onOff == 1) {
 		onOff = "on"
@@ -256,22 +267,48 @@ def commandResponse(cmdResponse){
 		status = status.dft_on_state
 	}
 	def level = status.brightness
-	def mode = status.mode
-	def color_temp = status.color_temp
-	def hue = status.hue
-	def saturation = status.saturation
-	log.info "$device.name $device.label: Power: ${onOff} / Brightness: ${level}% / Mode: ${mode} / Color Temp: ${color_temp}K / Hue: ${hue} / Saturation: ${saturation}"
 	sendEvent(name: "switch", value: onOff)
  	sendEvent(name: "level", value: level)
-	if (state.deviceType == "TunableWhite Bulb" || "Color Bulb") {
-		sendEvent(name: "bulbMode", value: mode)
-		sendEvent(name: "colorTemperature", value: color_temp)
-	}
-	if (state.deviceType == "Color Bulb") {
-		sendEvent(name: "hue", value: hue)
-		sendEvent(name: "saturation", value: saturation)
-		sendEvent(name: "color", value: colorUtil.hslToHex(hue/3.6 as int, saturation as int))
-	}
+
+    switch(state.deviceType) {
+    	case "SoftWhite Bulb":
+	        log.info "$device.name $device.label: Power: ${onOff} / Brightness: ${level}%"
+			break
+            
+        case "TuneableWhite Bulb":
+			def circadianMode = status.mode
+			def color_temp = status.color_temp
+			sendEvent(name: "circadianMode", value: circadianMode)
+			sendEvent(name: "colorTemperature", value: color_temp)
+	        state.lastColorTemp = color_temp
+			log.info "$device.name $device.label: Power: ${onOff} / Brightness: ${level}% / Circadian Mode: ${circadianMode} / Color Temp: ${color_temp}K"
+			break
+
+		default:	//	Color Bulb
+			def circadianMode = status.mode
+			def color_temp = status.color_temp
+			def hue = status.hue
+			def saturation = status.saturation
+		    def color = [:]
+            def scaledHue = status.hue
+            if (scaledHue > 0) scaledHue = status.hue / 3.6	// 0...100 scale
+		    color << ["hue" : scaledHue]
+		    color << ["saturation" : status.saturation]
+			sendEvent(name: "circadianMode", value: circadianMode)
+			sendEvent(name: "colorTemperature", value: color_temp)
+			sendEvent(name: "hue", value: hue)
+			sendEvent(name: "saturation", value: saturation)
+			sendEvent(name: "color", value: color)
+		    if (color_temp.toInteger() == 0) {
+		        state.lastHue = scaledHue
+				state.lastSaturation = saturation
+                sendEvent(name: "colorMode", value: "color" ,descriptionText: descriptionText)
+            } else {
+		        state.lastColorTemp = color_temp
+                sendEvent(name: "colorMode", value: "colorTemperature" ,descriptionText: descriptionText)
+		    }
+			log.info "$device.name $device.label: Power: ${onOff} / Brightness: ${level}% / Circadian Mode: ${circadianMode} / Color Temp: ${color_temp}K / Color: ${color}"
+    }
 }
 
 //	===== Send the Command =====
@@ -338,8 +375,13 @@ def hubResponseParse(response) {
 def actionDirector(action, cmdResponse) {
 	switch(action) {
 		case "commandResponse":
-			commandResponse(cmdResponse)
+        	refresh()
 			break
+
+		case "refreshResponse":
+			refreshResponse(cmdResponse)
+			break
+
 		default:
 			log.info "Interface Error.  See SmartApp and Device error message."
 	}
@@ -349,4 +391,29 @@ def actionDirector(action, cmdResponse) {
 def syncAppServerUrl(newAppServerUrl) {
 	updateDataValue("appServerUrl", newAppServerUrl)
 		log.info "Updated appServerUrl for ${device.name} ${device.label}"
+}
+
+def setLightTransTime(lightTransTime) {
+	state.transTime = lightTransTime
+	log.info "Light Transition Time for ${device.name} ${device.label} set to ${state.transTime} miliseconds"
+}
+
+def setRefreshRate(refreshRate) {
+	switch(refreshRate) {
+		case "5":
+			runEvery5Minutes(refresh)
+			log.info "${device.name} ${device.label} Refresh Scheduled for every 5 minutes"
+			break
+		case "10":
+			runEvery10Minutes(refresh)
+			log.info "${device.name} ${device.label} Refresh Scheduled for every 10 minutes"
+			break
+		case "15":
+			runEvery15Minutes(refresh)
+			log.info "${device.name} ${device.label} Refresh Scheduled for every 15 minutes"
+			break
+		default:
+			runEvery30Minutes(refresh)
+			log.info "${device.name} ${device.label} Refresh Scheduled for every 30 minutes"
+	}
 }
