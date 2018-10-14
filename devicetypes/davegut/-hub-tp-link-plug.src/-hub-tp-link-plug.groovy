@@ -29,9 +29,9 @@ TP-Link devices; primarily various users on GitHub.com.
             technical information for this update.
 
 	===== Plug/Switch Type.  DO NOT EDIT ====================*/
-//	def deviceType = "Plug"				//	Plug
+	def deviceType = "Plug"				//	Plug
 //	def deviceType = "Switch"			//	Switch
-	def deviceType = "Dimming Switch"	//	HS220 Only
+//	def deviceType = "Dimming Switch"	//	HS220 Only
 //	===== Icon to use =======================================*/
 //	def deviceIcon = "st.Appliances.appliances17"	//Plugs
 //	def deviceIcon = "st.Home.home30"				//Switches

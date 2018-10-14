@@ -148,10 +148,10 @@ def ping() {
 }
 
 def installed() {
-	update()
+	updated()
 }
 
-def update() {
+def updated() {
 	log.info "Updated ${device.label}..."
 	state.deviceType = metadata.definition.deviceType
 	state.installType = metadata.definition.installType

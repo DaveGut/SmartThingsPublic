@@ -196,10 +196,10 @@ def ping() {
 }
 
 def installed() {
-	update()
+	updated()
 }
 
-def update() {
+def updated() {
 	unschedule()
 	state.deviceType = metadata.definition.deviceType
 	state.installType = metadata.definition.installType

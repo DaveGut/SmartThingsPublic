@@ -29,8 +29,14 @@ TP-Link devices; primarily various users on GitHub.com.
             technical information for this update.
 
 	===== Plug/Switch Type.  DO NOT EDIT ====================*/
-//	def deviceType = "Plug-Switch"			//	Plug/Switch
-	def deviceType = "Dimming Switch"		//	HS220 Only
+//	def deviceType = "Plug"				//	Plug
+//	def deviceType = "Switch"			//	Switch
+	def deviceType = "Dimming Switch"	//	HS220 Only
+//	===== Icon to use =======================================*/
+//	def deviceIcon = "st.Appliances.appliances17"	//Plugs
+//	def deviceIcon = "st.Home.home30"				//Switches
+	def deviceIcon = "st.Home.home30"
+    if (deviceType == "Plug") deviceIcon = "st.Appliances.appliances17"
 //	===== Hub or Cloud Installation =========================*/
 	def installType = "Cloud"
 //	def installType = "Hub"
@@ -48,24 +54,20 @@ metadata {
 				installType: "${installType}") {
 		capability "Switch"
 		capability "refresh"
-		capability "polling"
-		capability "Sensor"
-		capability "Actuator"
+//		capability "polling"			//	Depreciated
 		capability "Health Check"
-		if (deviceType == "Dimming Switch") {
-			capability "Switch Level"
-		}
 	}
-	tiles(scale: 2) {
+
+	tiles(scale:2) {
 		multiAttributeTile(name:"switch", type: "lighting", width: 6, height: 4, canChangeIcon: true){
 			tileAttribute ("device.switch", key: "PRIMARY_CONTROL") {
-				attributeState "on", label:'${name}', action:"switch.off", icon:"st.switches.switch.on", backgroundColor:"#00a0dc",
+				attributeState "on", label:'${name}', action:"switch.off", icon:"${deviceIcon}", backgroundColor:"#00a0dc",
 				nextState:"waiting"
-				attributeState "off", label:'${name}', action:"switch.on", icon:"st.switches.switch.off", backgroundColor:"#ffffff",
+				attributeState "off", label:'${name}', action:"switch.on", icon:"${deviceIcon}", backgroundColor:"#ffffff",
 				nextState:"waiting"
-				attributeState "waiting", label:'${name}', action:"switch.on", icon:"st.switches.switch.off", backgroundColor:"#15EE10",
+				attributeState "waiting", label:'${name}', action:"switch.on", icon:"${deviceIcon}", backgroundColor:"#15EE10",
 				nextState:"waiting"
-				attributeState "commsError", label:'Comms Error', action:"switch.on", icon:"st.switches.switch.off", backgroundColor:"#e86d13",
+				attributeState "commsError", label:'Comms Error', action:"switch.on", icon:"${deviceIcon}", backgroundColor:"#e86d13",
 				nextState:"waiting"
             }
 			if (deviceType == "Dimming Switch") {
@@ -102,12 +104,6 @@ metadata {
 }
 
 //	===== Update when installed or setting changed =====
-/*	Health Check Implementation
-	1.	Each time a command is sent, the DeviceWatch-Status
-		is set to on- or off-line.
-	2.	Refresh is run every 15 minutes to provide a min
-		cueing of this.
-	3.	Is valid for either hub or cloud based device.*/
 def initialize() {
 	log.trace "Initialized..."
 	sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson(["protocol":"cloud", "scheme":"untracked"]), displayed: false)
@@ -118,35 +114,24 @@ def ping() {
 }
 
 def installed() {
-	update()
+	updated()
 }
 
 def updated() {
-	runIn(2, update)
-}
-
-def update() {
+	log.info "Updated ${device.label}..."
 	state.deviceType = metadata.definition.deviceType
 	state.installType = metadata.definition.installType
 	unschedule()
-	switch(refreshRate) {
-		case "1":
-			runEvery1Minute(refresh)
-			log.info "Refresh Scheduled for every minute"
-			break
-		case "5":
-			runEvery5Minutes(refresh)
-			log.info "Refresh Scheduled for every 5 minutes"
-			break
-		case "10":
-			runEvery10Minutes(refresh)
-			log.info "Refresh Scheduled for every 10 minutes"
-			break
-		default:
-			runEvery15Minutes(refresh)
-			log.info "Refresh Scheduled for every 15 minutes"
-	}
-	runIn(5, refresh)
+    
+    //	Update Refresh Rate Preference
+    if (refreshRate) {
+    	setRefreshRate(refreshRate)
+    } else {
+    	setRefreshRate(30)
+    }
+    
+	runIn(2, refresh)
+	runIn( 5, "initialize")
 }
 
 void uninstalled() {
@@ -167,23 +152,20 @@ def off() {
 }
 
 def setLevel(percentage) {
-	percentage = percentage as int
-    if (percentage == 0) {
-    	percentage = 1
+    if (percentage < 0 || percentage > 100) {
+        log.error "$device.name $device.label: Entered brightness is not from 0...100"
+        percentage = 50
     }
+	percentage = percentage as int
 	sendCmdtoServer("""{"smartlife.iot.dimmer":{"set_brightness":{"brightness":${percentage}}}}""", "deviceCommand", "commandResponse")
 }
 
-def poll() {
-	sendCmdtoServer('{"system":{"get_sysinfo":{}}}', "deviceCommand", "refreshResponse")
-}
+//def poll() {		//	Depreciated.
+//	refresh()
+//}
 
 def refresh(){
 	sendCmdtoServer('{"system":{"get_sysinfo":{}}}', "deviceCommand", "refreshResponse")
-}
-
-def commandResponse(cmdResponse) {
-	refresh()
 }
 
 def refreshResponse(cmdResponse){
@@ -194,20 +176,25 @@ def refreshResponse(cmdResponse){
 		onOff = "off"
 	}
 	sendEvent(name: "switch", value: onOff)
-	def level = "0"
 	if (state.deviceType == "Dimming Switch") {
-		level = cmdResponse.system.get_sysinfo.brightness
+		def level = cmdResponse.system.get_sysinfo.brightness
 	 	sendEvent(name: "level", value: level)
-	}
-	log.info "${device.name} ${device.label}: Power: ${onOff} / Dimmer Level: ${level}%"
+		log.info "${device.name} ${device.label}: Power: ${onOff} / Dimmer Level: ${level}%"
+	} else {
+		log.info "${device.name} ${device.label}: Power: ${onOff}"
+    }
 }
 
 //	----- SEND COMMAND TO CLOUD VIA SM -----
 private sendCmdtoServer(command, hubCommand, action) {
-	if (state.installType == "Hub") {
-		sendCmdtoHub(command, hubCommand, action)
-	} else {
-		sendCmdtoCloud(command, hubCommand, action)
+	try {
+		if (state.installType == "Cloud") {
+			sendCmdtoCloud(command, hubCommand, action)
+		} else {
+			sendCmdtoHub(command, hubCommand, action)
+		}
+	} catch (ex) {
+		log.error "Sending Command Exception:", ex
 	}
 }
 
@@ -262,7 +249,7 @@ def hubResponseParse(response) {
 def actionDirector(action, cmdResponse) {
 	switch(action) {
 		case "commandResponse":
-			commandResponse(cmdResponse)
+        	refresh()
 			break
 
 		case "refreshResponse":
@@ -278,4 +265,28 @@ def actionDirector(action, cmdResponse) {
 def syncAppServerUrl(newAppServerUrl) {
 	updateDataValue("appServerUrl", newAppServerUrl)
 		log.info "Updated appServerUrl for ${device.name} ${device.label}"
+}
+
+def setLightTransTime(lightTransTime) {
+	return
+}
+
+def setRefreshRate(refreshRate) {
+	switch(refreshRate) {
+		case "5":
+			runEvery5Minutes(refresh)
+			log.info "${device.name} ${device.label} Refresh Scheduled for every 5 minutes"
+			break
+		case "10":
+			runEvery10Minutes(refresh)
+			log.info "${device.name} ${device.label} Refresh Scheduled for every 10 minutes"
+			break
+		case "15":
+			runEvery15Minutes(refresh)
+			log.info "${device.name} ${device.label} Refresh Scheduled for every 15 minutes"
+			break
+		default:
+			runEvery30Minutes(refresh)
+			log.info "${device.name} ${device.label} Refresh Scheduled for every 30 minutes"
+	}
 }

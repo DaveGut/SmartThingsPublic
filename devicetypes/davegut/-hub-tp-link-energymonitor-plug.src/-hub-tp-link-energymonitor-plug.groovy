@@ -45,9 +45,7 @@ metadata {
 				installType: "${installType}") {
 		capability "Switch"
 		capability "refresh"
-		capability "polling"
-		capability "Sensor"
-		capability "Actuator"
+//		capability "polling"			//	Depreciated
 		capability "Health Check"
 		capability "Power Meter"
 		command "getPower"
@@ -61,13 +59,13 @@ metadata {
 	tiles(scale: 2) {
 		multiAttributeTile(name:"switch", type: "lighting", width: 6, height: 4, canChangeIcon: true){
 			tileAttribute ("device.switch", key: "PRIMARY_CONTROL") {
-				attributeState "on", label:'${name}', action:"switch.off", icon:"st.switches.switch.on", backgroundColor:"#00a0dc",
+				attributeState "on", label:'${name}', action:"switch.off", icon:"st.Appliances.appliances17", backgroundColor:"#00a0dc",
 				nextState:"waiting"
-				attributeState "off", label:'${name}', action:"switch.on", icon:"st.switches.switch.off", backgroundColor:"#ffffff",
+				attributeState "off", label:'${name}', action:"switch.on", icon:"st.Appliances.appliances17", backgroundColor:"#ffffff",
 				nextState:"waiting"
-				attributeState "waiting", label:'${name}', action:"switch.on", icon:"st.switches.switch.off", backgroundColor:"#15EE10",
+				attributeState "waiting", label:'${name}', action:"switch.on", icon:"st.Appliances.appliances17f", backgroundColor:"#15EE10",
 				nextState:"waiting"
-				attributeState "commsError", label:'Comms Error', action:"switch.on", icon:"st.switches.switch.off", backgroundColor:"#e86d13",
+				attributeState "commsError", label:'Comms Error', action:"switch.on", icon:"st.Appliances.appliances17", backgroundColor:"#e86d13",
 				nextState:"waiting"
 			}
  			tileAttribute ("deviceError", key: "SECONDARY_CONTROL") {
@@ -145,37 +143,24 @@ def ping() {
 }
 
 def installed() {
-	update()
+	updated()
 }
 
 def updated() {
-	runIn(2, update)
-}
-
-def update() {
 	state.deviceType = metadata.definition.deviceType
 	state.installType = metadata.definition.installType
 	state.emon = metadata.definition.energyMonitor
 	state.emeterText = "emeter"
 	state.getTimeText = "time"
 	unschedule()
-	switch(refreshRate) {
-		case "1":
-			runEvery1Minute(refresh)
-			log.info "Refresh Scheduled for every minute"
-			break
-		case "5":
-			runEvery5Minutes(refresh)
-			log.info "Refresh Scheduled for every 5 minutes"
-			break
-		case "10":
-			runEvery10Minutes(refresh)
-			log.info "Refresh Scheduled for every 10 minutes"
-			break
-		default:
-			runEvery15Minutes(refresh)
-			log.info "Refresh Scheduled for every 15 minutes"
-	}
+    
+    //	Update Refresh Rate Preference
+    if (refreshRate) {
+    	setRefreshRate(refreshRate)
+    } else {
+    	setRefreshRate(30)
+    }
+    
 	schedule("0 05 0 * * ?", setCurrentDate)
 	schedule("0 10 0 * * ?", getEnergyStats)
 	setCurrentDate()
@@ -207,9 +192,9 @@ def getSystemInfo() {
     runIn(2, getPower)
 }
 
-def poll() {
-	sendCmdtoServer('{"system":{"get_sysinfo":{}}}', "deviceCommand", "commandResponse")
-}
+//def poll() {		//	Depreciated.
+//	refresh()
+//}
 
 def refresh(){
 	sendCmdtoServer('{"system":{"get_sysinfo":{}}}', "deviceCommand", "commandResponse")
@@ -429,10 +414,14 @@ def currentDateResponse(cmdResponse) {
 
 //	----- SEND COMMAND TO CLOUD VIA SM -----
 private sendCmdtoServer(command, hubCommand, action) {
-	if (state.installType == "Hub") {
-		sendCmdtoHub(command, hubCommand, action)
-	} else {
-		sendCmdtoCloud(command, hubCommand, action)
+	try {
+		if (state.installType == "Cloud") {
+			sendCmdtoCloud(command, hubCommand, action)
+		} else {
+			sendCmdtoHub(command, hubCommand, action)
+		}
+	} catch (ex) {
+		log.error "Sending Command Exception:", ex
 	}
 }
 
@@ -515,4 +504,28 @@ def actionDirector(action, cmdResponse) {
 def syncAppServerUrl(newAppServerUrl) {
 	updateDataValue("appServerUrl", newAppServerUrl)
 		log.info "Updated appServerUrl for ${device.name} ${device.label}"
+}
+
+def setLightTransTime(lightTransTime) {
+	return
+}
+
+def setRefreshRate(refreshRate) {
+	switch(refreshRate) {
+		case "5":
+			runEvery5Minutes(refresh)
+			log.info "${device.name} ${device.label} Refresh Scheduled for every 5 minutes"
+			break
+		case "10":
+			runEvery10Minutes(refresh)
+			log.info "${device.name} ${device.label} Refresh Scheduled for every 10 minutes"
+			break
+		case "15":
+			runEvery15Minutes(refresh)
+			log.info "${device.name} ${device.label} Refresh Scheduled for every 15 minutes"
+			break
+		default:
+			runEvery30Minutes(refresh)
+			log.info "${device.name} ${device.label} Refresh Scheduled for every 30 minutes"
+	}
 }

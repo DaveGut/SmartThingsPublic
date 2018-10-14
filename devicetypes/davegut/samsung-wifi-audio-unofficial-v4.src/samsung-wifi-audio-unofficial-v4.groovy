@@ -76,10 +76,21 @@ metadata {
 		//	----- SPEAKER / PLAYER CONTROL -----
 		capability "Switch"
 		capability "Refresh"
-		capability "Music Player"
-		capability "Sensor"
-		capability "Actuator"
-		capability "Audio Notification"
+		capability "Music Player"		//	Depreciated
+		capability "Sensor"				//	Depreciated
+		capability "Actuator"			//	Depreciated
+		capability "Audio Notification"	//	playTrack(), playTrackAndResume(), playTrackAndRestore()
+//		capability "Audio Mute"			//	mute(), unnute()
+//		capability "Audio Volume"		//	setVolume(), volumeUp(), volumeDown()
+//		capability "Media Controller"	//	startActivity(), attributes: activities, currentActivity
+//		capability "Media Input Source"	//	setInputSource(), att: inputSource, supportInputSources
+//		capability "Media Playback Repeat"	//	setPlaybackRepeatMode(all, off, one).  playbackRepeatMode
+//		capability "Media Playback Shuffle"	//	setPlaybackShuffle.  playbackShuffle(enabled, disabled)
+//		capability "Media Playback"	//	setPlaybackStatus(), play(), pause(), stop().  att: level, playbackStatus
+//		capability "Media Preset"	//	selecPreset(), playPresset().  presets
+//		capability "Media Track Control"	//	nextTrack(), previousTrack()
+//		capability "Notification"	//	??	deviceNotification(string)	could be used for TTS.
+//		capability "Speech Synthesis"	//	speak(string)
 //	===== Custom Commands and Attributes =======
 		//	----- SPEAKER / PLAYER CONTROL -----
 		command "toggleRepeat"
@@ -135,10 +146,11 @@ metadata {
 		command "clearErrorMsg"
 		attribute "errorMessage", "string"
 		//	----- playTextAnd -----
-		command "playTextAndResume", ["string","number"]
+		command "playTextAndResume", ["string","number"]		//	uri,level
 		command "playTextAndRestore", ["string","number"]
-		command "playTextAsVoiceAndResume", ["string","number","string"]
+		command "playTextAsVoiceAndResume", ["string","number","string"]		//uri, level, voice
 		command "playTextAsVoiceAndRestore", ["string","number","string"]
+//		command "playTrack", ["string", "number"]
 	}
 
 	tiles(scale: 2) {
