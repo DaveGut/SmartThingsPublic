@@ -127,12 +127,6 @@ metadata {
 }
 
 //	===== Update when installed or setting changed =====
-/*	Health Check Implementation
-	1.	Each time a command is sent, the DeviceWatch-Status
-		is set to on- or off-line.
-	2.	Refresh is run every 15 minutes to provide a min
-		cueing of this.
-	3.	Is valid for either hub or cloud based device.*/
 def initialize() {
 	log.trace "Initialized..."
 	sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson(["protocol":"cloud", "scheme":"untracked"]), displayed: false)
@@ -188,7 +182,7 @@ def off() {
 }
 
 def getSystemInfo() {
-	sendCmdtoServer('{"system":{"get_sysinfo":{}}}', "deviceCommand", "commandResponse")
+	sendCmdtoServer('{"system":{"get_sysinfo":{}}}', "deviceCommand", "refreshResponse")
     runIn(2, getPower)
 }
 
@@ -197,24 +191,20 @@ def getSystemInfo() {
 //}
 
 def refresh(){
-	sendCmdtoServer('{"system":{"get_sysinfo":{}}}', "deviceCommand", "commandResponse")
+	sendCmdtoServer('{"system":{"get_sysinfo":{}}}', "deviceCommand", "refreshResponse")
 	runIn(2, getPower)
     runIn(7, getConsumption)
 }
 
-def commandResponse(cmdResponse){
-	if (cmdResponse.system.set_relay_state == null) {
-		def status = cmdResponse.system.get_sysinfo.relay_state
-		if (status == 1) {
-			status = "on"
-		} else {
-			status = "off"
-		}
-		log.info "${device.name} ${device.label}: Power: ${status}"
-		sendEvent(name: "switch", value: status)
-	}	else {
-		return
+def refreshResponse(cmdResponse){
+	def status = cmdResponse.system.get_sysinfo.relay_state
+	if (status == 1) {
+		status = "on"
+	} else {
+		status = "off"
 	}
+	log.info "${device.name} ${device.label}: Power: ${status}"
+	sendEvent(name: "switch", value: status)
 }
 
 //	===== Get Current Energy Data =====
@@ -476,7 +466,11 @@ def hubResponseParse(response) {
 def actionDirector(action, cmdResponse) {
 	switch(action) {
 		case "commandResponse":
-			commandResponse(cmdResponse)
+			refresh()
+			break
+
+		case "refreshResponse":
+			refreshResponse(cmdResponse)
 			break
 
 		case "energyMeterResponse":
