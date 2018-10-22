@@ -27,9 +27,9 @@ definition(
 	author: "${appAuthor()}",
 	description: "${textDesc()}",
 	category: "Convenience",
-	iconUrl: "${getAppImg("kasa.png", on)}",
-	iconX2Url: "${getAppImg("kasa.png", on)}",
-	iconX3Url: "${getAppImg("kasa.png", on)}",
+	iconUrl: "https://s3.amazonaws.com/smartapp-icons/Meta/light_outlet.png",
+	iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Meta/light_outlet.png",
+	iconX3Url: "https://s3.amazonaws.com/smartapp-icons/Meta/light_outlet.png",
 	singleInstance: true
 )
 
@@ -80,11 +80,7 @@ def setInitialStates() {
 			state.TpLinkToken = null
 			state.currentError = null
 			state.errorCount = 0
-//			settingUpdate("userSelectedLauncher", "false", "bool")
-//			settingUpdate("userSelectedQuickControl", "false", "bool")
 		} else {
-//			settingUpdate("userSelectedLauncher", "true", "bool")
-//			settingUpdate("userSelectedQuickControl", "true", "bool")
 		}
 		settingUpdate("userSelectedReload", "false", "bool")
 	}
@@ -111,15 +107,18 @@ def welcomePage() {
                             "Preferences, UpdateToken."
     def instructionsText3 = "For advanced users, brings up options for this application."
     def instructionsText4 = "CAUTION!!! Uninstalls all Devices and the Application."
-	return dynamicPage (name: "welcomePage", title: "Welcome Page", install: false, uninstall: false) {
-		section("") {
-			paragraph appInfoDesc(), image: getAppImg("kasa.png")
+	return dynamicPage (name: "welcomePage", 
+    	title: "Welcome Page", 
+        install: false, 
+        uninstall: false) {
+		section() {
+			paragraph appInfoDesc(), image: "https://s3.amazonaws.com/smartapp-icons/Meta/light_outlet.png"
    			if (state.TpLinkToken == null) {
-				paragraph tokenInfoOffline(), image: getAppImg("error.png")
+				paragraph tokenInfoOffline(), image: "https://s3.amazonaws.com/smartapp-icons/Solution/dangers-active@2x.png"
             } else if (state.currentError != null) {
-				paragraph kasaErrorMessage(), image: getAppImg("error.png")
-			} else {
-				paragraph tokenInfoOnline(), image: getAppImg("tokenactive.png")
+				paragraph kasaErrorMessage(), image: "https://s3.amazonaws.com/smartapp-icons/Solution/dangers-active@2x.png"
+ 			} else {
+				paragraph tokenInfoOnline(), image: "https://s3.amazonaws.com/smartapp-icons/Connections/Cat-Connections@2x.png"
 			}
 		}
 //	Remove Information and Diagnostics page.  Info added above to permanently view.        
@@ -134,27 +133,48 @@ def welcomePage() {
 //	Remove userSelectedLauncher as a option.  Rationale:
 		section("Kasa Cloud Actions", hideable: true, hidden: false) {
 			if (state.currentError != null) {
-				paragraph pageSelectorErrorText(), image: getAppImg("error.png")
+				paragraph kasaErrorMessage(), image: "https://s3.amazonaws.com/smartapp-icons/Solution/dangers-active@2x.png"
+			} else {
+				href "userSelectionPage", 
+                	title: "Kasa Options", 
+                    description: "Tap Here to Kasa Cloud Action", 
+            		image: "https://s3.amazonaws.com/smartapp-icons/Internal/network-scanner.png"
 			}
-			href "userSelectionPage", title: "Kasa Options", description: "Tap Here to Kasa Cloud Action", 
-            	image: getAppImg("userselectionpage.png")
 		}
 //	Remove userSelectedQuickControl
 		section("Application Settings", hideable: true, hidden: true) {
-			href "userApplicationPreferencesPage", title: "Go to Application Settings", 
-            	description: "Tap to set Application preferences", image: getAppImg("userapplicationpreferencespage.png")
+			href "userApplicationPreferencesPage", 
+            	title: "Go to Application Settings", 
+            	description: "Tap to set Application preferences",
+                image: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png"
 		}
 		section("Uninstall Application and All Devices", hideable: true, hidden: true) {
-			href "uninstallPage", title: "Go to Uninstall Page", description: "Tap to go to Unstall Page", image: getAppImg("uninstallpage.png")
+			href "uninstallPage",
+            	title: "Go to Uninstall Page", 
+                description: "Tap to go to Unstall Page", 
+                image: "https://s3.amazonaws.com/smartapp-icons/Convenience/App-NotifyWhenNotHere@2x.png"
 		}
 		if (userSelectedDeveloper) {
 			section("Developer") {
-				href "developerPage", title: "Developer Page", description: "Tap to view", image: getAppImg("developerpage.png")
+				href "developerPage", 
+                	title: "Developer Page", 
+                    description: "Tap to view", 
+                    image: getAppImg("developerpage.png")
 			}
 		}
 		section("Help and Feedback") {
-			href url: getWikiPageUrl(), style: "embedded", title: "View the Projects Wiki", description: "Tap to open in browser", state: "complete", image: getAppImg("help.png")
-			href url: getIssuePageUrl(), style: "embedded", title: "Report | View Issues", description: "Tap to open in browser", state: "complete", image: getAppImg("issue.png")
+			href url: getWikiPageUrl(), 
+            	style: "embedded", 
+                title: "View the Projects Wiki", 
+                description: "Tap to open in browser", 
+                state: "complete", 
+                image: getAppImg("help.png")
+			href url: getIssuePageUrl(), 
+            	style: "embedded", 
+                title: "Report | View Issues", 
+                description: "Tap to open in browser", 
+                state: "complete", 
+                image: getAppImg("issue.png")
 		}
 		section("About and Changelog") {
 			href "aboutPage", title: "About Page", description: "Tap to view", image: getAppImg("aboutpage.png")
@@ -177,14 +197,14 @@ def userSelectionPage() {
 	def instructionsText6 = "Updates the Token using your current Username and Password"
 
 	return dynamicPage (name: "userSelectionPage", title: "Launcher Page", nextPage: "computerSelectionPage", install: false, uninstall: false) {
-		section("") {
-			paragraph appInfoDesc(), image: getAppImg("kasa.png")
+		section() {
+			paragraph appInfoDesc(), image: "https://s3.amazonaws.com/smartapp-icons/Meta/light_outlet.png"
    			if (state.TpLinkToken == null) {
- 				paragraph tokenInfoOffline(), image: getAppImg("error.png")
+				paragraph tokenInfoOffline(), image: "https://s3.amazonaws.com/smartapp-icons/Solution/dangers-active@2x.png"
             } else if (state.currentError != null) {
-				paragraph kasaErrorMessage(), image: getAppImg("error.png")
-			} else {
-				paragraph tokenInfoOnline(), image: getAppImg("tokenactive.png")
+				paragraph kasaErrorMessage(), image: "https://s3.amazonaws.com/smartapp-icons/Solution/dangers-active@2x.png"
+ 			} else {
+				paragraph tokenInfoOnline(), image: "https://s3.amazonaws.com/smartapp-icons/Connections/Cat-Connections@2x.png"
 			}
 		}
         
@@ -204,29 +224,27 @@ def userSelectionPage() {
 		section() {
 			input ("userSelectedOptionOne", "enum", title: "Select Kasa Cloud Action", required: true, multiple: false, 
                    submitOnChange: true, metadata: [values:["Initial Installation", "Install Devices", "Remove Devices", 
-                   "Set Device Peferences", "Update Token"]], image: getAppImg("userinput.png"))
+//                   "Set Device Peferences", "Update Token"]], image: getAppImg("userinput.png"))
+                   "Set Device Peferences", "Update Token"]])
 		}
 
 //	Move to Welcome
 		section() {
-			if (userSelectedOptionOne != null) {
-				if (state.currentError != null) {paragraph pageSelectorErrorText(), image: getAppImg("error.png")}
-			} else {
-				paragraph pageSelectorNullText(), image: getAppImg("pickapage.png")
-			}
+			paragraph pageSelectorNullText()
 //	Added options and updated to a switch for ease of code reading.
 			switch (userSelectedOptionOne) {
 				case "Initial Installation":
 					href "userSelectionAuthenticationPage", 
                          title: "Login Page",
                          description: "Tap to continue",
-                         image: getAppImg("userselectionauthenticationpage.png")
-					break
+//                         image: getAppImg("userselectionauthenticationpage.png")
+						 image: "https://s3.amazonaws.com/smartapp-icons/Meta/text@2x.png"
+						break
 				case "Install Devices":
 					href "addDevicesPage",
                          title: "Device Installer Page", 
                          description: "Tap to continue", 
-                         image: getAppImg("adddevicespage.png")
+                         image: "https://s3.amazonaws.com/smartapp-icons/Convenience/smartlights@2x.png"
 					break
 				case "Remove Devices":
 					href "removeDevicesPage", 
@@ -286,13 +304,13 @@ def userSelectionAuthenticationPage() {
                             "will automatically be directed to the Device Installer Page."
 	return dynamicPage (name: "userSelectionPage", title: "Launcher Page", nextPage: "computerSelectionPage", install: false, uninstall: false) {
 		section("") {
-			paragraph appInfoDesc(), image: getAppImg("kasa.png")
+			paragraph appInfoDesc(), image: "https://s3.amazonaws.com/smartapp-icons/Meta/light_outlet.png"
    			if (state.TpLinkToken == null) {
- 				paragraph tokenInfoOffline(), image: getAppImg("error.png")
+ 				paragraph tokenInfoOffline(), image: "https://s3.amazonaws.com/smartapp-icons/Convenience/App-NotifyWhenNotHere@2x.png"
             } else if (state.currentError != null) {
-				paragraph kasaErrorMessage(), image: getAppImg("error.png")
+				paragraph kasaErrorMessage(), image: "https://s3.amazonaws.com/smartapp-icons/Convenience/App-NotifyWhenNotHere@2x.png"
 			} else {
-				paragraph tokenInfoOnline(), image: getAppImg("tokenactive.png")
+				paragraph tokenInfoOnline()
 			}
 		}
         
@@ -424,9 +442,9 @@ def userDevicePreferencesPage() {
 		}
 		section("Information and Diagnostics:", hideable: true, hidden: true) {
 			if (state.TpLinkToken != null) {
-				paragraph tokenInfoOnline(), image: getAppImg("tokenactive.png")
+				paragraph tokenInfoOnline()
 			} else {
-				paragraph tokenInfoOffline(), image: getAppImg("error.png")
+				paragraph tokenInfoOffline(), image: "https://s3.amazonaws.com/smartapp-icons/Convenience/App-NotifyWhenNotHere@2x.png"
 			}
 			paragraph title: "Information:", userDevicePreferencesPageText, image: getAppImg("information.png")
 		}
@@ -1158,7 +1176,7 @@ def appVerInfo()	{ return getWebData([uri: "https://raw.githubusercontent.com/${
 def pageSelectorErrorText()	{ return "Kasa Cloud error detected.  See error message near top of page" }
 def pageSelectorNullText()	{ return "Please select a option to continue" }
 def pageSelectorText()	{ return "Please tap below to continue" }
-def kasaErrorMessage() {return "Kasa Cloud Error: ${state.currentError} \nResolve this error and try again."}
+def kasaErrorMessage() {return "Kasa Cloud Error: ${state.currentError}  \nResolve this error and try again."}
 def sendingCommandFailed()	{ return "Ready to Send Command to SmartThings Application" }
 def sendingCommandSuccess()	{ return "Command Sent to SmartThings Application" }
 def textCopyright()	{ return "Copyright© 2018 - Dave Gutheinz, Anthony Ramirez" }
@@ -1169,7 +1187,7 @@ def textVerInfo()	{ return "${appVerInfo()}" }
 def textVersion()	{ return "Version: ${appVersion()}" }
 def textLicense()	{ return getWebData([uri: "https://raw.githubusercontent.com/${gitPath()}/data/license.txt", contentType: "text/plain; charset=UTF-8"], "license") }
 def tokenInfoOffline()	{ return "You do not have a token.  Either complete the initial Login or Update Token!" }
-def tokenInfoOnline()	{ return "You are ready to continue." }
+def tokenInfoOnline()	{ return "No detected errors. You are ready to continue." }
 
 
 //	----- Misc Data -----
