@@ -21,24 +21,30 @@ All development is based upon open-source data on the
 TP-Link devices; primarily various users on GitHub.com.
 
 	===== History ============================================
-2018-10-14	Update to Version 3.  Initial compatibility with
-			the Classic and new SmartThings Mobile App.  No
-            update to Service Manager.  Service Manager must
-            be installed via the SmartThings Classic App.
-            Thanks to Anthony Ramirez for providing the
-            technical information for this update.
-
+2018-10-23	Update to Version 3.3:
+			a.	Compatibility with new SmartThings app.
+            b.	Update capabilities per latest ST definitions
+            	1.	deleted capability polling (depreciated)
+                2.	deleted capability sensor (depreciated)
+				3.	update program to accommodate other items
+			c.	Various changes for updated Service Manager
+           	With great appreciation to Anthony Ramirez for
+            his assistance as well as leading the development
+            of the new Service Manager.
+    
 //	===== Hub or Cloud Installation =========================*/
+	def deviceType = { return "Energy Monitor Plug" }//	Switch
 	def installType = "Cloud"
-	//def installType = "Hub"
+//	def installType = "Hub"
+//	========Other System Value ===============================
+	def devVer() { return "3.3.0" }
 //	===========================================================
 
 metadata {
 	definition (name: "(${installType}) TP-Link Energy Monitor Plug",
 				namespace: "davegut",
 				author: "Dave Gutheinz and Anthony Ramirez",
-				deviceType: "EnergyMonitor Plug",
-				energyMonitor: "EnergyMonitor",
+				deviceType: "${deviceType}",
 				ocfDeviceType: "oic.d.smartplug",
 				mnmn: "SmartThings",
 				vid: "generic-switch-power-energy",
@@ -55,6 +61,8 @@ metadata {
 		attribute "monthAvgE", "string"
 		attribute "weekTotalE", "string"
 		attribute "weekAvgE", "string"
+		attribute "devVer", "string"
+		attribute "devTyp", "string"
 	}
 	tiles(scale: 2) {
 		multiAttributeTile(name:"switch", type: "lighting", width: 6, height: 4, canChangeIcon: true){
@@ -118,7 +126,7 @@ metadata {
 	rates << ["15" : "Refresh every 15 minutes"]
 
 	preferences {
-		if (installType == "Hub") {
+		if (installType == "Node Applet") {
 			input("deviceIP", "text", title: "Device IP", required: true, displayDuringSetup: true)
 			input("gatewayIP", "text", title: "Gateway IP", required: true, displayDuringSetup: true)
 		}
@@ -129,6 +137,8 @@ metadata {
 //	===== Update when installed or setting changed =====
 def initialize() {
 	log.trace "Initialized..."
+	attribute "devVer", "string"
+	attribute "devTyp", "string"
 	sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson(["protocol":"cloud", "scheme":"untracked"]), displayed: false)
 }
 
@@ -154,6 +164,8 @@ def updated() {
     } else {
     	setRefreshRate(30)
     }
+	attribute "devVer", "string"
+	attribute "devTyp", "string"
     
 	schedule("0 05 0 * * ?", setCurrentDate)
 	schedule("0 10 0 * * ?", getEnergyStats)
@@ -163,7 +175,7 @@ def updated() {
 }
 
 void uninstalled() {
-	if (state.installType == "Cloud") {
+	if (state.installType == "Kasa Account") {
 		def alias = device.label
 		log.debug "Removing device ${alias} with DNI = ${device.deviceNetworkId}"
 		parent.removeChildDevice(alias, device.deviceNetworkId)
@@ -405,7 +417,7 @@ def currentDateResponse(cmdResponse) {
 //	----- SEND COMMAND TO CLOUD VIA SM -----
 private sendCmdtoServer(command, hubCommand, action) {
 	try {
-		if (state.installType == "Cloud") {
+		if (state.installType == "Kasa Account") {
 			sendCmdtoCloud(command, hubCommand, action)
 		} else {
 			sendCmdtoHub(command, hubCommand, action)

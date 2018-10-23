@@ -1,4 +1,4 @@
-/*	TP Link Bulbs Device Handler, 2018 Version 2
+/*	TP Link Bulbs Device Handler, 2018 Version 3
 	Copyright 2018 Dave Gutheinz and Anthony Ramirez
 
 Licensed under the Apache License, Version 2.0(the "License");
@@ -20,28 +20,33 @@ All  development is based upon open-source data on the
 TP-Link devices; primarily various users on GitHub.com.
 
 	===== History ============================================
-2018-10-14	Update to Version 3.  Initial compatibility with
-			the Classic and new SmartThings Mobile App.  No
-            update to Service Manager.  Service Manager must
-            be installed via the SmartThings Classic App.
-            Thanks to Anthony Ramirez for providing the
-            technical information for this update.
-
+2018-10-23	Update to Version 3.3:
+			a.	Compatibility with new SmartThings app.
+            b.	Update capabilities per latest ST definitions
+            	1.	deleted capability polling (depreciated)
+                2.	deleted capability sensor (depreciated)
+				3.	update program to accommodate other items
+			c.	Various changes for updated Service Manager
+           	With great appreciation to Anthony Ramirez for
+            his assistance as well as leading the development
+            of the new Service Manager.
+    
 	===== Bulb Identifier.  DO NOT EDIT ====================*/
-//	def deviceType = "Soft White Bulb"	//	Soft White
-	def deviceType = "Tunable White Bulb"	//	ColorTemp
-//	def deviceType = "Color Bulb"			//	Color
+//	def deviceType = { return "Soft White Bulb"}	//	Soft White
+	def deviceType = { return "Tunable White Bulb"}	//	ColorTemp
+//	def deviceType = { return "Color Bulb" }		//	Color
 //	===== Hub or Cloud Installation ==========================
 	def installType = "Cloud"
 //	def installType = "Hub"
+//	======== Other System Value ==============================
+	def devVer() { return "3.3.0" }
 //	==========================================================
 
 metadata {
-	definition (name: "(${installType}) TP-Link ${deviceType}",
+	definition (name: "(${installType}) TP-Link ${deviceType()}",
 				namespace: "davegut",
 				author: "Dave Gutheinz and Anthony Ramirez",
 				deviceType: "${deviceType}",
-				energyMonitor: "Standard",
 				ocfDeviceType: "oic.d.light",
 				mnmn: "SmartThings",
 				vid: "generic-rgbw-color-bulb",
@@ -61,6 +66,8 @@ metadata {
             capability "Color Control"
 			capability "Color Mode"
 		}
+		attribute "devVer", "string"
+		attribute "devType", "string"
 	}
 	tiles(scale:2) {
 		multiAttributeTile(name:"switch", type: "lighting", width: 6, height: 4, canChangeIcon: true){
@@ -128,7 +135,7 @@ metadata {
 	rates << ["15" : "Refresh every 15 minutes"]
 
 	preferences {
-		if (installType == "Hub") {
+		if (installType == "Node Applet") {
 			input("deviceIP", "text", title: "Device IP", required: true, displayDuringSetup: true)
 			input("gatewayIP", "text", title: "Gateway IP", required: true, displayDuringSetup: true)
 		}
@@ -141,6 +148,8 @@ metadata {
 def initialize() {
 	log.info "Initialized ${device.label}..."
 	sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson(["protocol":"cloud", "scheme":"untracked"]), displayed: false)
+	sendEvent(name: "devVer", value: devVer(), displayed: false)
+	sendEvent(name: "devTyp", value: devType(), displayed: false)
 }
 
 def ping() {
@@ -156,23 +165,27 @@ def updated() {
 	state.deviceType = metadata.definition.deviceType
 	state.installType = metadata.definition.installType
 	unschedule()
-    
-    //	Update Refresh Rate Preference
-    if (refreshRate) {
+
+	if (refreshRate) {
     	setRefreshRate(refreshRate)
     } else {
     	setRefreshRate(30)
     }
 
-	//	Update Light Transition Time Preference
-	setLightTransTime(transitionTime)
+    if (transitionTime == null) {
+	    setLightTransTime(1000)
+    } else {
+		setLightTransTime(transitionTime)
+    }
 
 	runIn(2, refresh)
 	runIn( 5, "initialize")
+	sendEvent(name: "devVer", value: devVer(), displayed: false)
+	sendEvent(name: "devTyp", value: devType(), displayed: false)
 }
 
 void uninstalled() {
-	if (state.installType == "Cloud") {
+	if (state.installType == "Kasa Account") {
 		def alias = device.label
 		log.debug "Removing device ${alias} with DNI = ${device.deviceNetworkId}"
 		parent.removeChildDevice(alias, device.deviceNetworkId)
@@ -314,7 +327,7 @@ def refreshResponse(cmdResponse){
 //	===== Send the Command =====
 private sendCmdtoServer(command, hubCommand, action) {
 	try {
-		if (state.installType == "Cloud") {
+		if (state.installType == "Kasa Account") {
 			sendCmdtoCloud(command, hubCommand, action)
 		} else {
 			sendCmdtoHub(command, hubCommand, action)
@@ -393,9 +406,9 @@ def syncAppServerUrl(newAppServerUrl) {
 		log.info "Updated appServerUrl for ${device.name} ${device.label}"
 }
 
-def setLightTransTime(lightTransTime) {
-	state.transTime = lightTransTime
-	log.info "Light Transition Time for ${device.name} ${device.label} set to ${state.transTime} miliseconds"
+def setLightTransTime(newTransTime) {
+	state.transTime = newTransTime
+	log.info "Light Transition Time for ${device.name} ${device.label} set to ${newTransTime} miliseconds"
 }
 
 def setRefreshRate(refreshRate) {

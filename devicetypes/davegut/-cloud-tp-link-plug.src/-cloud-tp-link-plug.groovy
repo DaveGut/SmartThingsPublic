@@ -21,33 +21,36 @@ All  development is based upon open-source data on the
 TP-Link devices; primarily various users on GitHub.com.
 
 	===== History ============================================
-2018-10-14	Update to Version 3.  Initial compatibility with
-			the Classic and new SmartThings Mobile App.  No
-            update to Service Manager.  Service Manager must
-            be installed via the SmartThings Classic App.
-            Thanks to Anthony Ramirez for providing the
-            technical information for this update.
-
+2018-10-23	Update to Version 3.3:
+			a.	Compatibility with new SmartThings app.
+            b.	Update capabilities per latest ST definitions
+            	1.	deleted capability polling (depreciated)
+                2.	deleted capability sensor (depreciated)
+				3.	update program to accommodate other items
+			c.	Various changes for updated Service Manager
+           	With great appreciation to Anthony Ramirez for
+            his assistance as well as leading the development
+            of the new Service Manager.
+    
 	===== Plug/Switch Type.  DO NOT EDIT ====================*/
-	def deviceType = "Plug"				//	Plug
-//	def deviceType = "Switch"			//	Switch
-//	def deviceType = "Dimming Switch"	//	HS220 Only
+	def deviceType = { return "Plug" }		//	Plug
+//	def deviceType = { return "Switch" }		//	Switch
+//	def deviceType = { return "Dimming Switch"}	//	HS220 Only
 //	===== Icon to use =======================================*/
-//	def deviceIcon = "st.Appliances.appliances17"	//Plugs
-//	def deviceIcon = "st.Home.home30"				//Switches
 	def deviceIcon = "st.Home.home30"
     if (deviceType == "Plug") deviceIcon = "st.Appliances.appliances17"
 //	===== Hub or Cloud Installation =========================*/
 	def installType = "Cloud"
 //	def installType = "Hub"
-//	===========================================================
+//	========Other System Value ===============================
+	def devVer() { return "3.3.0" }
+//	==========================================================
 
 metadata {
-	definition (name: "(${installType}) TP-Link ${deviceType}",
+	definition (name: "(${installType}) TP-Link ${deviceType()}",
 				namespace: "davegut",
 				author: "Dave Gutheinz and Anthony Ramirez",
 				deviceType: "${deviceType}",
-				energyMonitor: "Standard",
 				ocfDeviceType: "oic.d.smartplug",
 				mnmn: "SmartThings",
 				vid: "generic-switch-power",
@@ -56,6 +59,11 @@ metadata {
 		capability "refresh"
 //		capability "polling"			//	Depreciated
 		capability "Health Check"
+		if (deviceType == "Dimming Switch") {
+			capability "Switch Level"
+		}
+		attribute "devVer", "string"
+		attribute "devTyp", "string"
 	}
 
 	tiles(scale:2) {
@@ -95,7 +103,7 @@ metadata {
 	rates << ["15" : "Refresh every 15 minutes"]
 
 	preferences {
-		if (installType == "Hub") {
+		if (installType == "Node Applet") {
 			input("deviceIP", "text", title: "Device IP", required: true, displayDuringSetup: true)
 			input("gatewayIP", "text", title: "Gateway IP", required: true, displayDuringSetup: true)
 		}
@@ -106,6 +114,8 @@ metadata {
 //	===== Update when installed or setting changed =====
 def initialize() {
 	log.trace "Initialized..."
+	sendEvent(name: "devVer", value: devVer(), displayed: false)
+	sendEvent(name: "devTyp", value: devType(), displayed: false)
 	sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson(["protocol":"cloud", "scheme":"untracked"]), displayed: false)
 }
 
@@ -129,13 +139,14 @@ def updated() {
     } else {
     	setRefreshRate(30)
     }
-    
+	sendEvent(name: "devVer", value: devVer(), displayed: false)
+	sendEvent(name: "devTyp", value: devType(), displayed: false)
 	runIn(2, refresh)
 	runIn( 5, "initialize")
 }
 
 void uninstalled() {
-	if (state.installType == "Cloud") {
+	if (state.installType == "Kasa Account") {
 		def alias = device.label
 		log.debug "Removing device ${alias} with DNI = ${device.deviceNetworkId}"
 		parent.removeChildDevice(alias, device.deviceNetworkId)
@@ -188,7 +199,7 @@ def refreshResponse(cmdResponse){
 //	----- SEND COMMAND TO CLOUD VIA SM -----
 private sendCmdtoServer(command, hubCommand, action) {
 	try {
-		if (state.installType == "Cloud") {
+		if (state.installType == "Kasa Account") {
 			sendCmdtoCloud(command, hubCommand, action)
 		} else {
 			sendCmdtoHub(command, hubCommand, action)
