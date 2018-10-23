@@ -40,26 +40,24 @@ TP-Link devices; primarily various users on GitHub.com.
 	def deviceIcon = "st.Home.home30"
     if (deviceType == "Plug") deviceIcon = "st.Appliances.appliances17"
 //	===== Hub or Cloud Installation =========================*/
-	def installType = "Cloud"
-//	def installType = "Hub"
+	def installType() { return "Cloud" }
+//	def installType() { return "Hub" }
 //	========Other System Value ===============================
 	def devVer() { return "3.3.0" }
 //	==========================================================
 
 metadata {
-	definition (name: "(${installType}) TP-Link ${deviceType()}",
+	definition (name: "(${installType()}) TP-Link ${deviceType()}",
 				namespace: "davegut",
 				author: "Dave Gutheinz and Anthony Ramirez",
-//				deviceType: "${deviceType}",
 				ocfDeviceType: "oic.d.smartplug",
 				mnmn: "SmartThings",
-				vid: "generic-switch-power",
-				installType: "${installType}") {
+				vid: "generic-switch-power") {
 		capability "Switch"
 		capability "refresh"
 //		capability "polling"			//	Depreciated
 		capability "Health Check"
-		if (deviceType == "Dimming Switch") {
+		if (deviceType() == "Dimming Switch") {
 			capability "Switch Level"
 		}
 		attribute "devVer", "string"
@@ -78,7 +76,7 @@ metadata {
 				attributeState "commsError", label:'Comms Error', action:"switch.on", icon:"${deviceIcon}", backgroundColor:"#e86d13",
 				nextState:"waiting"
             }
-			if (deviceType == "Dimming Switch") {
+			if (deviceType() == "Dimming Switch") {
 				tileAttribute ("device.level", key: "SLIDER_CONTROL") {
 					attributeState "level", label: "Brightness: ${currentValue}", action:"switch level.setLevel", range: "(1..100)"
 				}
@@ -103,7 +101,7 @@ metadata {
 	rates << ["15" : "Refresh every 15 minutes"]
 
 	preferences {
-		if (installType == "Node Applet") {
+		if (installType() == "Node Applet") {
 			input("deviceIP", "text", title: "Device IP", required: true, displayDuringSetup: true)
 			input("gatewayIP", "text", title: "Gateway IP", required: true, displayDuringSetup: true)
 		}
@@ -129,8 +127,6 @@ def installed() {
 
 def updated() {
 	log.info "Updated ${device.label}..."
-	state.deviceType = metadata.definition.deviceType
-	state.installType = metadata.definition.installType
 	unschedule()
     
     //	Update Refresh Rate Preference
@@ -146,7 +142,7 @@ def updated() {
 }
 
 void uninstalled() {
-	if (state.installType == "Kasa Account") {
+	if (installType() == "Cloud") {
 		def alias = device.label
 		log.debug "Removing device ${alias} with DNI = ${device.deviceNetworkId}"
 		parent.removeChildDevice(alias, device.deviceNetworkId)
@@ -187,7 +183,7 @@ def refreshResponse(cmdResponse){
 		onOff = "off"
 	}
 	sendEvent(name: "switch", value: onOff)
-	if (state.deviceType == "Dimming Switch") {
+	if (deviceType() == "Dimming Switch") {
 		def level = cmdResponse.system.get_sysinfo.brightness
 	 	sendEvent(name: "level", value: level)
 		log.info "${device.name} ${device.label}: Power: ${onOff} / Dimmer Level: ${level}%"
@@ -199,7 +195,7 @@ def refreshResponse(cmdResponse){
 //	----- SEND COMMAND TO CLOUD VIA SM -----
 private sendCmdtoServer(command, hubCommand, action) {
 	try {
-		if (state.installType == "Kasa Account") {
+		if (installType() == "Cloud") {
 			sendCmdtoCloud(command, hubCommand, action)
 		} else {
 			sendCmdtoHub(command, hubCommand, action)

@@ -34,21 +34,19 @@ TP-Link devices; primarily various users on GitHub.com.
     
 //	===== Hub or Cloud Installation =========================*/
 	def deviceType() { return "Energy Monitor Plug" }//	Switch
-//	def installType = "Cloud"
-	def installType = "Hub"
+//	def installType() { return "Cloud" }
+	def installType() {return  "Hub" }
 //	========Other System Value ===============================
 	def devVer() { return "3.3.0" }
 //	===========================================================
 
 metadata {
-	definition (name: "(${installType}) TP-Link Energy Monitor Plug",
+	definition (name: "(${installType()}) TP-Link Energy Monitor Plug",
 				namespace: "davegut",
 				author: "Dave Gutheinz and Anthony Ramirez",
-				deviceType: "${deviceType}",
 				ocfDeviceType: "oic.d.smartplug",
 				mnmn: "SmartThings",
-				vid: "generic-switch-power-energy",
-				installType: "${installType}") {
+				vid: "generic-switch-power-energy") {
 		capability "Switch"
 		capability "refresh"
 //		capability "polling"			//	Depreciated
@@ -126,7 +124,7 @@ metadata {
 	rates << ["15" : "Refresh every 15 minutes"]
 
 	preferences {
-		if (installType == "Node Applet") {
+		if (installType() == "Hub") {
 			input("deviceIP", "text", title: "Device IP", required: true, displayDuringSetup: true)
 			input("gatewayIP", "text", title: "Gateway IP", required: true, displayDuringSetup: true)
 		}
@@ -151,8 +149,6 @@ def installed() {
 }
 
 def updated() {
-	state.deviceType = metadata.definition.deviceType
-	state.installType = metadata.definition.installType
 	state.emon = metadata.definition.energyMonitor
 	state.emeterText = "emeter"
 	state.getTimeText = "time"
@@ -175,7 +171,7 @@ def updated() {
 }
 
 void uninstalled() {
-	if (state.installType == "Kasa Account") {
+	if (installType() == "Cloud") {
 		def alias = device.label
 		log.debug "Removing device ${alias} with DNI = ${device.deviceNetworkId}"
 		parent.removeChildDevice(alias, device.deviceNetworkId)
@@ -417,7 +413,7 @@ def currentDateResponse(cmdResponse) {
 //	----- SEND COMMAND TO CLOUD VIA SM -----
 private sendCmdtoServer(command, hubCommand, action) {
 	try {
-		if (state.installType == "Kasa Account") {
+		if (installType() == "Cloud") {
 			sendCmdtoCloud(command, hubCommand, action)
 		} else {
 			sendCmdtoHub(command, hubCommand, action)

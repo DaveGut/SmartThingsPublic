@@ -36,33 +36,31 @@ TP-Link devices; primarily various users on GitHub.com.
 //	def deviceType() { return "Tunable White Bulb"}	//	ColorTemp
 //	def deviceType() { return "Color Bulb" }		//	Color
 //	===== Hub or Cloud Installation ==========================
-	def installType = "Cloud"
-//	def installType = "Hub"
+	def installType() { return "Cloud" }
+//	def installType() { return "Hub" }
 //	======== Other System Value ==============================
 	def devVer() { return "3.3.0" }
 //	==========================================================
 
 metadata {
-	definition (name: "(${installType}) TP-Link ${deviceType()}",
+	definition (name: "(${installType()}) TP-Link ${deviceType()}",
 				namespace: "davegut",
 				author: "Dave Gutheinz and Anthony Ramirez",
-				deviceType: "${deviceType}",
 				ocfDeviceType: "oic.d.light",
 				mnmn: "SmartThings",
-				vid: "generic-rgbw-color-bulb",
-				installType: "${installType}") {
+				vid: "generic-rgbw-color-bulb") {
 		capability "Switch"
 		capability "Switch Level"
 		capability "refresh"
 //		capability "polling"			//	Depreciated.
 		capability "Health Check"
-		if (deviceType != "Soft White Bulb") {
+		if (deviceType() != "Soft White Bulb") {
 			capability "Color Temperature"
 			command "setModeNormal"
 			command "setModeCircadian"
 			attribute "circadianMode", "string"
 		}
-		if (deviceType == "Color Bulb") {
+		if (deviceType() == "Color Bulb") {
             capability "Color Control"
 			capability "Color Mode"
 		}
@@ -87,7 +85,7 @@ metadata {
 			tileAttribute ("device.level", key: "SLIDER_CONTROL") {
 				attributeState "level", label: "Brightness: ${currentValue}", action:"switch level.setLevel"
 			}
-			if (deviceType == "Color Bulb") {
+			if (deviceType() == "Color Bulb") {
 				tileAttribute ("device.color", key: "COLOR_CONTROL") {
 					attributeState "color", action:"setColor"
 				}
@@ -98,12 +96,12 @@ metadata {
 			state "default", label:"Refresh", action:"refresh.refresh"
 		}
 		
-		if (deviceType == "Tunable White Bulb") {
+		if (deviceType() == "Tunable White Bulb") {
 			controlTile("colorTempSliderControl", "device.colorTemperature", "slider", width: 2, height: 1, inactiveLabel: false,
 			range:"(2700..6500)") {
 				state "colorTemperature", action:"color temperature.setColorTemperature"
 			}
-		} else if (deviceType == "Color Bulb") {
+		} else if (deviceType() == "Color Bulb") {
 			controlTile("colorTempSliderControl", "device.colorTemperature", "slider", width: 2, height: 1, inactiveLabel: false,
 			range:"(2500..9000)") {
 				state "colorTemperature", action:"color temperature.setColorTemperature"
@@ -120,7 +118,7 @@ metadata {
 		}
 
 		main("switch")
-		if (deviceType == "Soft White Bulb") {
+		if (deviceType() == "Soft White Bulb") {
 			details("switch", "refresh")
 		} else {
 				details("switch", "colorTemp", "bulbMode", "refresh", 
@@ -135,7 +133,7 @@ metadata {
 	rates << ["15" : "Refresh every 15 minutes"]
 
 	preferences {
-		if (installType == "Node Applet") {
+		if (installType() == "Hub") {
 			input("deviceIP", "text", title: "Device IP", required: true, displayDuringSetup: true)
 			input("gatewayIP", "text", title: "Gateway IP", required: true, displayDuringSetup: true)
 		}
@@ -162,8 +160,6 @@ def installed() {
 
 def updated() {
 	log.info "Updated ${device.label}..."
-	state.deviceType = metadata.definition.deviceType
-	state.installType = metadata.definition.installType
 	unschedule()
 
 	if (refreshRate) {
@@ -185,7 +181,7 @@ def updated() {
 }
 
 void uninstalled() {
-	if (state.installType == "Kasa Account") {
+	if (installType() == "Cloud") {
 		def alias = device.label
 		log.debug "Removing device ${alias} with DNI = ${device.deviceNetworkId}"
 		parent.removeChildDevice(alias, device.deviceNetworkId)
@@ -217,7 +213,7 @@ def setLevel(percentage, rate) {
 
 def setColorTemperature(kelvin) {
     if (kelvin == null) kelvin = state.lastColorTemp
-	switch(state.deviceType) {
+	switch(deviceType()) {
     	case "TuneableWhite Bulb":
 		    if (kelvin < 2700) kelvin = 2700
 		    if (kelvin > 6500) kelvin = 6500
@@ -283,7 +279,7 @@ def refreshResponse(cmdResponse){
 	sendEvent(name: "switch", value: onOff)
  	sendEvent(name: "level", value: level)
 
-    switch(state.deviceType) {
+    switch(deviceType()) {
     	case "Soft White Bulb":
 	        log.info "$device.name $device.label: Power: ${onOff} / Brightness: ${level}%"
 			break
@@ -327,7 +323,7 @@ def refreshResponse(cmdResponse){
 //	===== Send the Command =====
 private sendCmdtoServer(command, hubCommand, action) {
 	try {
-		if (state.installType == "Kasa Account") {
+		if (installType() == "Cloud") {
 			sendCmdtoCloud(command, hubCommand, action)
 		} else {
 			sendCmdtoHub(command, hubCommand, action)
