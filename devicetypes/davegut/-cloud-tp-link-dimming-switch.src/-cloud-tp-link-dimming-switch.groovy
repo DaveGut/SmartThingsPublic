@@ -33,9 +33,9 @@ TP-Link devices; primarily various users on GitHub.com.
             of the new Service Manager.
     
 	===== Plug/Switch Type.  DO NOT EDIT ====================*/
-//	def deviceType = { return "Plug" }		//	Plug
-//	def deviceType = { return "Switch" }		//	Switch
-	def deviceType = { return "Dimming Switch"}	//	HS220 Only
+//	def deviceType() { return "Plug" }			//	Plug
+//	def deviceType() { return "Switch" }		//	Switch
+	def deviceType() { return "Dimming Switch"}	//	HS220 Only
 //	===== Icon to use =======================================*/
 	def deviceIcon = "st.Home.home30"
     if (deviceType == "Plug") deviceIcon = "st.Appliances.appliances17"
@@ -50,7 +50,7 @@ metadata {
 	definition (name: "(${installType}) TP-Link ${deviceType()}",
 				namespace: "davegut",
 				author: "Dave Gutheinz and Anthony Ramirez",
-				deviceType: "${deviceType}",
+//				deviceType: "${deviceType}",
 				ocfDeviceType: "oic.d.smartplug",
 				mnmn: "SmartThings",
 				vid: "generic-switch-power",
@@ -115,7 +115,7 @@ metadata {
 def initialize() {
 	log.trace "Initialized..."
 	sendEvent(name: "devVer", value: devVer(), displayed: false)
-	sendEvent(name: "devTyp", value: devType(), displayed: false)
+	sendEvent(name: "devTyp", value: deviceType(), displayed: false)
 	sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson(["protocol":"cloud", "scheme":"untracked"]), displayed: false)
 }
 
@@ -140,7 +140,7 @@ def updated() {
     	setRefreshRate(30)
     }
 	sendEvent(name: "devVer", value: devVer(), displayed: false)
-	sendEvent(name: "devTyp", value: devType(), displayed: false)
+	sendEvent(name: "devTyp", value: deviceType(), displayed: false)
 	runIn(2, refresh)
 	runIn( 5, "initialize")
 }

@@ -33,7 +33,7 @@ TP-Link devices; primarily various users on GitHub.com.
             of the new Service Manager.
     
 //	===== Hub or Cloud Installation =========================*/
-	def deviceType = { return "Energy Monitor Plug" }//	Switch
+	def deviceType() { return "Energy Monitor Plug" }//	Switch
 	def installType = "Cloud"
 //	def installType = "Hub"
 //	========Other System Value ===============================
@@ -137,8 +137,8 @@ metadata {
 //	===== Update when installed or setting changed =====
 def initialize() {
 	log.trace "Initialized..."
-	attribute "devVer", "string"
-	attribute "devTyp", "string"
+	sendEvent(name: "devVer", value: devVer(), displayed: false)
+	sendEvent(name: "devTyp", value: deviceType(), displayed: false)
 	sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson(["protocol":"cloud", "scheme":"untracked"]), displayed: false)
 }
 
@@ -164,8 +164,8 @@ def updated() {
     } else {
     	setRefreshRate(30)
     }
-	attribute "devVer", "string"
-	attribute "devTyp", "string"
+	sendEvent(name: "devVer", value: devVer(), displayed: false)
+	sendEvent(name: "devTyp", value: deviceType(), displayed: false)
     
 	schedule("0 05 0 * * ?", setCurrentDate)
 	schedule("0 10 0 * * ?", getEnergyStats)

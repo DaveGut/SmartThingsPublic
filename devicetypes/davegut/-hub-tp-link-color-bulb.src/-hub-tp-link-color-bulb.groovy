@@ -32,9 +32,9 @@ TP-Link devices; primarily various users on GitHub.com.
             of the new Service Manager.
     
 	===== Bulb Identifier.  DO NOT EDIT ====================*/
-//	def deviceType = { return "Soft White Bulb"}	//	Soft White
-//	def deviceType = { return "Tunable White Bulb"}	//	ColorTemp
-	def deviceType = { return "Color Bulb" }		//	Color
+//	def deviceType() { return "Soft White Bulb"}	//	Soft White
+//	def deviceType() { return "Tunable White Bulb"}	//	ColorTemp
+	def deviceType() { return "Color Bulb" }		//	Color
 //	===== Hub or Cloud Installation ==========================
 //	def installType = "Cloud"
 	def installType = "Hub"
@@ -149,7 +149,7 @@ def initialize() {
 	log.info "Initialized ${device.label}..."
 	sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson(["protocol":"cloud", "scheme":"untracked"]), displayed: false)
 	sendEvent(name: "devVer", value: devVer(), displayed: false)
-	sendEvent(name: "devTyp", value: devType(), displayed: false)
+	sendEvent(name: "devTyp", value: deviceType(), displayed: false)
 }
 
 def ping() {
@@ -181,7 +181,7 @@ def updated() {
 	runIn(2, refresh)
 	runIn( 5, "initialize")
 	sendEvent(name: "devVer", value: devVer(), displayed: false)
-	sendEvent(name: "devTyp", value: devType(), displayed: false)
+	sendEvent(name: "devTyp", value: deviceType(), displayed: false)
 }
 
 void uninstalled() {
