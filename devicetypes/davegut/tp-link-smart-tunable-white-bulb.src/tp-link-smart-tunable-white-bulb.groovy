@@ -21,7 +21,7 @@ All  development is based upon open-source data on the
 TP-Link devices; primarily various users on GitHub.com.
 
 ===== History ================================================
-2018-10-23	Update to Version 3.3:
+2018-10-23	Update to Version 3.5:
 			a.	Compatibility with new SmartThings app.
             b.	Update capabilities per latest ST definitions
             	1.	deleted capability polling (depreciated)
@@ -122,10 +122,8 @@ metadata {
 		}
 	}
 	preferences {
-//		input ("transition_Time", "enum", title: "Lighting Transition Time", options: ["500" : "0.5 second", "1000" : "1 second", "1500" : "1.5 second", "2000" : "2 seconds", "2500" : "2.5 seconds", "5000" : "5 seconds", "10000" : "10 seconds", "20000" : "20 seconds", "40000" : "40 seconds", "60000" : "60 seconds"], image: getDevImg("transition.png"))
-//		input ("refresh_Rate", "enum", title: "Device Refresh Rate", options: ["1" : "Refresh every minute", "5" : "Refresh every 5 minutes", "10" : "Refresh every 10 minutes", "15" : "Refresh every 15 minutes", "30" : "Refresh every 30 minutes"], image: getDevImg("refresh.png"))
-		input ("transition_Time", "enum", title: "Lighting Transition Time", options: ["500" : "0.5 second", "1000" : "1 second", "1500" : "1.5 second", "2000" : "2 seconds", "2500" : "2.5 seconds", "5000" : "5 seconds", "10000" : "10 seconds", "20000" : "20 seconds", "40000" : "40 seconds", "60000" : "60 seconds"])
-		input ("refresh_Rate", "enum", title: "Device Refresh Rate", options: ["1" : "Refresh every minute", "5" : "Refresh every 5 minutes", "10" : "Refresh every 10 minutes", "15" : "Refresh every 15 minutes", "30" : "Refresh every 30 minutes"])
+		input ("transition_Time", "enum", title: "Lighting Transition Time", options: ["500" : "0.5 second", "1000" : "1 second", "1500" : "1.5 second", "2000" : "2 seconds", "2500" : "2.5 seconds", "5000" : "5 seconds", "10000" : "10 seconds", "20000" : "20 seconds", "40000" : "40 seconds", "60000" : "60 seconds"], image: getDevImg("transition.png"))
+		input ("refresh_Rate", "enum", title: "Device Refresh Rate", options: ["1" : "Refresh every minute", "5" : "Refresh every 5 minutes", "10" : "Refresh every 10 minutes", "15" : "Refresh every 15 minutes", "30" : "Refresh every 30 minutes"], image: getDevImg("refresh.png"))
 		input ("install_Type", "enum", title: "Installation Type", options: ["Node Applet", "Kasa Account"])
 		input ("device_IP", "text", title: "Device IP (Hub Only, NNN.NNN.N.NNN)")
 		input ("gateway_IP", "text", title: "Gateway IP (Hub Only, NNN.NNN.N.NNN)")
@@ -338,7 +336,6 @@ private sendCmdtoCloud(command, hubCommand, action){
 }
 
 private sendCmdtoHub(command, hubCommand, action){
-//	added getdatavalue calls
 	def gatewayIP = getDataValue("gatewayIP")
     def deviceIP = getDataValue("deviceIP")
 	def headers = [:]
@@ -433,7 +430,7 @@ def setInstallType(installType) {
 }
 
 //	===== GitHub Values =====
-/*	def getDevImg(imgName)	{
+	def getDevImg(imgName)	{
     	return "https://raw.githubusercontent.com/${devNamespace()}/TP-Link-SmartThing/master/images/$imgName" 
-    }*/
+    }
 //end-of-file

@@ -22,7 +22,7 @@ All  development is based upon open-source data on the
 TP-Link devices; primarily various users on GitHub.com.
 
 ========= History ============================================
-2018-10-23	Update to Version 3.3:
+2018-10-23	Update to Version 3.5:
 			a.	Compatibility with new SmartThings app.
             b.	Update capabilities per latest ST definitions
             	1.	deleted capability polling (depreciated)
@@ -43,10 +43,9 @@ TP-Link devices; primarily various users on GitHub.com.
 //	def devNamespace()	{ return "ramiran2" }
 //	====== Other System Values =====
 	def ocfValue() { return (deviceType() == "Plug") ? "oic.d.smartplug" : "oic.d.switch" }
-//	def vidValue() { return (deviceType() == "Dimming Switch") ? "generic-dimmer-power" : "generic-switch-power" }
 	def vidValue() { return (deviceType() == "Dimming Switch") ? "generic-dimmer" : "generic-switch" }
 	def deviceIcon()	{ return (deviceType() == "Plug") ? "st.Appliances.appliances17" : "st.Home.home30" }
-	def devVer()	{ return "3.4.0" }
+	def devVer()	{ return "3.5.0" }
 //	======================================================================================================================
 
 metadata {
@@ -93,8 +92,7 @@ metadata {
 		details("switch", "refresh")
 	}
 	preferences {
-//		input ("refreshRate", "enum", title: "Device Refresh Rate", options: ["1" : "Refresh every minute", "5" : "Refresh every 5 minutes", "10" : "Refresh every 10 minutes", "15" : "Refresh every 15 minutes", "30" : "Refresh every 30 minutes"], image: getDevImg("refresh.png"))
-		input ("refreshRate", "enum", title: "Device Refresh Rate", options: ["1" : "Refresh every minute", "5" : "Refresh every 5 minutes", "10" : "Refresh every 10 minutes", "15" : "Refresh every 15 minutes", "30" : "Refresh every 30 minutes"])
+		input ("refreshRate", "enum", title: "Device Refresh Rate", options: ["1" : "Refresh every minute", "5" : "Refresh every 5 minutes", "10" : "Refresh every 10 minutes", "15" : "Refresh every 15 minutes", "30" : "Refresh every 30 minutes"], image: getDevImg("refresh.png"))
 		input ("install_Type", "enum", title: "Installation Type", options: ["Node Applet", "Kasa Account"])
 		input ("device_IP", "text", title: "Device IP (Hub Only, NNN.NNN.N.NNN)")
 		input ("gateway_IP", "text", title: "Gateway IP (Hub Only, NNN.NNN.N.NNN)")
@@ -299,7 +297,7 @@ def setInstallType(installType) {
 }
 
 //	===== GitHub Values =====
-//	def getDevImg(imgName)	{
-//    	return "https://raw.githubusercontent.com/${devNamespace()}/TP-Link-SmartThing/master/images/$imgName" 
-//    }
+	def getDevImg(imgName)	{
+    	return "https://raw.githubusercontent.com/${devNamespace()}/TP-Link-SmartThing/master/images/$imgName" 
+    }
 //end-of-file
