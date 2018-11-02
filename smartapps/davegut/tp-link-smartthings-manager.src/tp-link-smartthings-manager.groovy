@@ -16,26 +16,33 @@ development is based upon open-source data on the TP-Link Kasa Devices;
 primarily various users on GitHub.com.*/
 
 /*	===== CHANGES =====
-	1,  Added Installation Type Section to allow file-create Install type definition.
-		Note: Plan is to use same appLabel for either version.  We may change to an
-		Internal selector.  However, the user can not jump from one to the other
-		without causing confusion
-	2.	Added install type to appInfoDesc()
-        
-    
-    
-    
-    
-	===== RECOMMENDATIONS FOR CHANGES =====
-        
+	1.  User selection of installType.  Resultant single appLabel.
+		Various logic entries usiing installType.
+    2.	User entry of bridgeIp for the node applet selection.
+    	Didn't add bridge discovery.  Too many of the node devices
+        are not ssdp (raspberry pi, android, fire tablets)
+    3.	added hubGetDevices.  Added runEvery5 for this.
+    4.	added bridge health-check running every 5 minutes.
+    5.	Cleaned up kasaXxxxxx and hubXxxxx pageName nomenclature to
+    	minimize naming.
+    6.	Removed userSelectedDevicesOne selections.  Was confusing 
+    	and caused errors.  Single welcome page with the options
+        also works best.
+    7.	Reworked page top to always display app name and Error (if any).
+    	Reworked second section to Information and Help - hideable/hidden.
+        Now contains addition app info plus help text.
+    8.	Made Help and Feedback hideable/hidden.
+    9.	Renumbered version to 3.5.0 to coincide with device handlers.
+    	All changes should be at the 3.5.x level unless functionality
+        is added (please).
 */
 //	===== Developer Namespace =====
 	def appNamespace()	{ return "davegut" }
 //	def appNamespace()	{ return "ramiran2" }
 //	====== Application Information =====
 	def appLabel()	{ return "TP-Link SmartThings Manager" }
-	def appVersion()	{ return "4.2.0" }
-	def appVerDate()	{ return "10-25-2018" }
+	def appVersion()	{ return "3.5.0" }
+	def appVerDate()	{ return "10-31-2018" }
 	def appAuthor()	{ return "Dave Gutheinz, Anthony Ramirez" }
 //	===========================================================
 
@@ -53,15 +60,15 @@ preferences {
 	page(name: "startPage")
 	page(name: "welcomePage")
 	page(name: "hubEnterIpPage")
-	page(name: "kasaUserSelectionAuthenticationPage")
-	page(name: "kasaUserAuthenticationPreferencesPage")
+	page(name: "kasaInitialAuthenticationPage")
+	page(name: "kasaAuthenticationSettingsPage")
 	page(name: "hubUpdateIpPage")
 	page(name: "kasaAddDevicesPage")
 	page(name: "hubAddDevicesPage")
 	page(name: "removeDevicesPage")
-	page(name: "userApplicationPreferencesPage")
-	page(name: "userDevicePreferencesPage")
-	page(name: "kasaUserSelectionTokenPage")
+	page(name: "applicationPreferencesPage")
+	page(name: "devicePreferencesPage")
+	page(name: "kasaTokenManagerPage")
 	page(name: "developerPage")
 	page(name: "developerTestingPage")
 	page(name: "hiddenPage")
@@ -81,7 +88,6 @@ def setInitialStates() {
 	settingRemove("userSelectedDevicesToUpdate")
 	settingRemove("userSelectedOptionThree")
     settingRemove("userSelectedOptionTwo")
-    settingRemove("userSelectedOptionOne")
 	if ("${userName}" =~ null || "${userPassword}" =~ null) {
 		settingRemove("userName")
 		settingRemove("userPassword")
@@ -99,7 +105,7 @@ def startPage() {
 	setInitialStates()
     if (installType) {
 		if (installType == "Kasa Account" && userName == null && password == null) {
-			return kasaUserSelectionAuthenticationPage()       	
+			return kasaInitialAuthenticationPage()       	
 		} else if (installType == "Node Applet" && bridgeIp == null) {
 			return hubEnterIpPage()
 		} else {
@@ -108,26 +114,25 @@ def startPage() {
     }
 	def page2Text = ""
     def page3Text = ""
-	def page1Text = "Before the installation, the installation type must be entered.  There are two options \n\r"
+	def page1Text = "Before the installation, the installation type must be entered.  There are two options:"
     page2Text += "Kasa Account:  This is the cloud based entry.  It requires that the user provide "
-    page2Text += "enter their Kasa Account login and password to install the devices.\n\r"
+    page2Text += "enter their Kasa Account login and password to install the devices."
     page3Text += "Node Applet:  This installation requires several items. (1) An always on server (PC, Android, "
     page3Text += "or other device).  (2) The provided node.js applet up and running on the Server.  (3) Static "
     page3Text += "IP addresses for the server (bridge/hub).  It does not require login credentials."
 	return dynamicPage (name: "startPage", title: "Select Installation Type", install: false, uninstall: false) {
 		section("") {
-			paragraph "${appLabel()}}", image: getAppImg("kasa.png")
+			paragraph "${appLabel()}", image: getAppImg("kasa.png")
 			if (state.currentError != null) {
-				paragraph title:"Error Status:", "${state.currentError}! Correct before continuing.", image: getAppImg("error.png")
+				paragraph "ERROR:  ${state.currentError}! Correct before continuing.", image: getAppImg("error.png")
 			} else {
 				paragraph "No detected program errors!"
             }
 		}
         
-		section("Information and Help: ", hideable: true, hidden: true) {
+		section("Information and Instructions: ", hideable: true, hidden: true) {
         	paragraph title: "Program Information: ", appInfoDesc(), image: getAppImg("kasa.png")
-			paragraph "Selecting a Installation Type:", image: getAppImg("information.png")
-            paragraph page1Text
+            paragraph title: "Instructions", page1Text, image: getAppImg("information.png")
             paragraph page2Text
             paragraph page3Text
 		}
@@ -152,44 +157,142 @@ def startPage() {
 	}
 }
 
-//	----- WELCOME PAGE -----
-def welcomePage() {
-	def welcomePageText = "Welcome to the new SmartThings application for TP-Link Kasa Devices. If you want to check for updates you can now do that in the changelog page."
-	def driverVersionText = "Current Driver Version: ${textDriverVersion()}"
-	return dynamicPage (name: "welcomePage", title: "Select Action Page", install: false, uninstall: false) {
+//	----- Main first (landing) Pages -----
+def kasaInitialAuthenticationPage() {
+	def page1Text = "If possible, open the IDE and select Live Logging. Then, " +
+		"enter your Username and Password for the TP-Link Kasa Application. \n\r\n\r"+
+		"After entering all credentials, select 'Install Devices to Continue'.  This " +
+		"will call the Add Devices page.\n\r\n\r" +
+		"You must select and add a device to install the application!"
+	return dynamicPage (name: "kasaInitialAuthenticationPage", 
+    		title: "Initial Kasa Login Page", 
+            nextPage: "kasaAddDevicesPage", 
+            install: false, 
+            uninstall: false) {
 		section("") {
-			paragraph "${appLabel()}}", image: getAppImg("kasa.png")
+			paragraph "${appLabel()}", image: getAppImg("kasa.png")
 			if (state.currentError != null) {
-				paragraph title:"Error Status:", "${state.currentError}! Correct before continuing.", image: getAppImg("error.png")
+				paragraph "ERROR:  ${state.currentError}! Correct before continuing.", image: getAppImg("error.png")
 			} else {
 				paragraph "No detected program errors!"
             }
 		}
         
-		section("Information: ", hideable: true, hidden: true) {
+		section("Information and Instructions: ", hideable: true, hidden: true) {
         	paragraph title: "Program Information: ", appInfoDesc(), image: getAppImg("kasa.png")
-			paragraph title: "Help: ", welcomePageText, image: getAppImg("information.png")
+            paragraph title: "Instructions", page1Text, image: getAppImg("information.png")
+		}
+        
+		section("Enter Kasa Account Credentials: ") {
+			input ("userName", "email", title: "TP-Link Kasa Email Address", required: true, submitOnChange: false, image: getAppImg("email.png"))
+			input ("userPassword", "password", title: "TP-Link Kasa Account Password", required: true, submitOnChange: true, image: getAppImg("password.png"))
+		}
+        
+		section("") {
+			if (state.currentError != null) {
+				paragraph "Error! Exit program and try again after resolving problem. ${state.currentError}!", image: getAppImg("error.png")
+			} else if (userName != null && userPassword != null) {
+ 				href "kasaAddDevicesPage", title: "Install Devices to Continue!", description: "Tap to continue", image: getAppImg("adddevicespage.png")
+			}
+		}
+        
+		section("Help and Feedback: ", hideable: true, hidden: true) {
+			href url: getWikiPageUrl(), style: "${strBrowserMode()}", title: "View the Projects Wiki", description: "Tap to open in browser", state: "complete", image: getAppImg("help.png")
+			href url: getIssuePageUrl(), style: "${strBrowserMode()}", title: "Report | View Issues", description: "Tap to open in browser", state: "complete", image: getAppImg("issue.png")
+		}
+        
+		section("Changelog and About: ", hideable: true, hidden: true) {
+			href "changeLogPage", title: "Changelog Page", description: "Tap to view", image: getAppImg("changelogpage.png")
+			href "aboutPage", title: "About Page", description: "Tap to view", image: getAppImg("aboutpage.png")
+		}
+        
+		section("${textCopyright()}")
+	}
+}
+
+def hubEnterIpPage() {
+	def page1Text = "If possible, open the IDE and select Live Logging. Then, " +
+		"enter the static IP address for your gateway that runs the Node.js applet.  Assure "+
+		"that the node.js applet is running and logging to the display."
+	return dynamicPage (name: "hubEnterIpPage", title: "Set Gateway IP Page", nextPage: "",install: false, uninstall: false) {
+		section("") {
+			paragraph "${appLabel()}", image: getAppImg("kasa.png")
+			if (state.currentError != null) {
+				paragraph "ERROR:  ${state.currentError}! Correct before continuing.", image: getAppImg("error.png")
+			} else {
+				paragraph "No detected program errors!"
+            }
+		}
+        
+		section("Information and Instructions: ", hideable: true, hidden: true) {
+        	paragraph title: "Program Information: ", appInfoDesc(), image: getAppImg("kasa.png")
+            paragraph title: "Instructions", page1Text, image: getAppImg("information.png")
+		}
+        
+		section("") {
+			input ("bridgeIp", 
+				"text", 
+                title: "Enter the Gateway IP", 
+                required: true, 
+                multiple: false, 
+                submitOnChange: true,
+                image: "https://s3.amazonaws.com/smartapp-icons/Internal/network-scanner.png"
+            )
+            if (bridgeIp) {
+				href "hubAddDevicesPage", title: "Install Devices to Continue!", description: "Tap to continue", image: getAppImg("adddevicespage.png")
+			}
+		}
+        
+		section("Help and Feedback: ", hideable: true, hidden: true) {
+			href url: getWikiPageUrl(), style: "${strBrowserMode()}", title: "View the Projects Wiki", description: "Tap to open in browser", state: "complete", image: getAppImg("help.png")
+			href url: getIssuePageUrl(), style: "${strBrowserMode()}", title: "Report | View Issues", description: "Tap to open in browser", state: "complete", image: getAppImg("issue.png")
+		}
+        
+		section("Changelog and About: ", hideable: true, hidden: true) {
+			href "changeLogPage", title: "Changelog Page", description: "Tap to view", image: getAppImg("changelogpage.png")
+			href "aboutPage", title: "About Page", description: "Tap to view", image: getAppImg("aboutpage.png")
+		}
+        
+		section("${textCopyright()}")
+	}
+}
+
+def welcomePage() {
+	def page1Text = "Welcome to the new SmartThings application for TP-Link Kasa Devices. If you want to check for updates you can now do that in the changelog page."
+	return dynamicPage (name: "welcomePage", title: "Select Action Page", install: false, uninstall: false) {
+		section("") {
+			paragraph "${appLabel()}", image: getAppImg("kasa.png")
+			if (state.currentError != null) {
+				paragraph "ERROR:  ${state.currentError}! Correct before continuing.", image: getAppImg("error.png")
+			} else {
+				paragraph "No detected program errors!"
+            }
+		}
+        
+		section("Information and Instructions: ", hideable: true, hidden: true) {
+        	paragraph title: "Program Information: ", appInfoDesc(), image: getAppImg("kasa.png")
+            paragraph title: "Instructions", page1Text, image: getAppImg("information.png")
 		}
         
 		section("Device Manager: ") {
-        	if (installType == "Kasa Application") {
-				href "kasaAddDevicesPage", title: "Device Installer Page", description: "Tap to view", image: getAppImg("adddevicespage.png")
+        	if (installType == "Kasa Account") {
+				href "kasaAddDevicesPage", title: "Kasa Device Installer Page", description: "Tap to view", image: getAppImg("adddevicespage.png")
             } else {
-				href "hubAddDevicesPage", title: "Device Installer Page", description: "Tap to view", image: getAppImg("adddevicespage.png")
+				href "hubAddDevicesPage", title: "Hub Device Installer Page", description: "Tap to view", image: getAppImg("adddevicespage.png")
             }
 			href "removeDevicesPage", title: "Device Uninstaller Page", description: "Tap to view", image: getAppImg("removedevicespage.png")
-			href "userDevicePreferencesPage", title: "Device Preferences Page", description: "Tap to view", image: getAppImg("userdevicepreferencespage.png")
+			href "devicePreferencesPage", title: "Device Preferences Page", description: "Tap to view", image: getAppImg("userdevicepreferencespage.png")
 		}
         
 		section("Settings and Preferences: ") {
             if (installType == "Kasa Account") {
-				href "kasaUserAuthenticationPreferencesPage", title: "Login Settings Page", 
+				href "kasaAuthenticationSettingsPage", title: "Login Settings Page", 
                 	description: "Tap to view", image: getAppImg("userauthenticationpreferencespage.png")
             }	else {
 				href "hubUpdateIpPage", title: "Update Gateway IP Page", description: "Tap to view", 
                 	image: "https://s3.amazonaws.com/smartapp-icons/Internal/network-scanner.png"
 			}
-			href "userApplicationPreferencesPage", title: "Application Settings Page", description: "Tap to view", image: getAppImg("userapplicationpreferencespage.png")
+			href "applicationPreferencesPage", title: "Application Settings Page", description: "Tap to view", image: getAppImg("userapplicationpreferencespage.png")
 		}
 
 		section("Uninstall: ") {
@@ -202,12 +305,12 @@ def welcomePage() {
 			}
 		}
         
-		section("Help and Feedback: ") {
+		section("Help and Feedback: ", hideable: true, hidden: true) {
 			href url: getWikiPageUrl(), style: "${strBrowserMode()}", title: "View the Projects Wiki", description: "Tap to open in browser", state: "complete", image: getAppImg("help.png")
 			href url: getIssuePageUrl(), style: "${strBrowserMode()}", title: "Report | View Issues", description: "Tap to open in browser", state: "complete", image: getAppImg("issue.png")
 		}
         
-		section("Changelog and About: ") {
+		section("Changelog and About: ", hideable: true, hidden: true) {
 			href "changeLogPage", title: "Changelog Page", description: "Tap to view", image: getAppImg("changelogpage.png")
 			href "aboutPage", title: "About Page", description: "Tap to view", image: getAppImg("aboutpage.png")
 		}
@@ -216,125 +319,24 @@ def welcomePage() {
 	}
 }
 
-def kasaUserSelectionAuthenticationPage() {
-	def kasaUserSelectionAuthenticationPageText = "If possible, open the IDE and select Live Logging. Then, " +
-		"enter your Username and Password for TP-Link (same as Kasa app) and the "+
-		"action you want to complete. " + "\nAvailable actions: \n" +
-		"Activate Account: You will be required to login into TP-Link Kasa Account and you will be required to adds devices to SmartThings Account. \n" +
-		"Update Account: You will be required to update your credentials to login into your TP-Link Kasa Account. \n" +
-		"Delete Account: Deletes your credentials to login into your TP-Link Kasa Account."
-	return dynamicPage (name: "kasaUserSelectionAuthenticationPage", title: "Login Page", nextPage: "kasaAddDevicesPage", install: false, uninstall: false) {
-		section("") {
-			paragraph "${appLabel()}}", image: getAppImg("kasa.png")
-			if (state.currentError != null) {
-				paragraph title:"Error Status:", "${state.currentError}! Correct before continuing.", image: getAppImg("error.png")
-			} else {
-				paragraph "No detected program errors!"
-            }
-		}
-        
-		section("Information and Help: ", hideable: true, hidden: true) {
-        	paragraph title: "Program Information: ", appInfoDesc(), image: getAppImg("kasa.png")
-			paragraph title: "Help: ", kasaUserSelectionAuthenticationPageText, image: getAppImg("information.png")
-		}
-        
-		section("Account Configuration: ") {
-			input ("userName", "email", title: "TP-Link Kasa Email Address", required: true, submitOnChange: false, image: getAppImg("email.png"))
-			input ("userPassword", "password", title: "TP-Link Kasa Account Password", required: true, submitOnChange: false, image: getAppImg("password.png"))
-		}
-        
-		section("User Configuration: ") {
-			input ("userSelectedOptionTwo", 
-            	   "enum", 
-                   title: "What do you want to do?", 
-                   required: true, 
-                   multiple: false, 
-                   submitOnChange: true, 
-                   metadata: [values:["Update Account", "Activate Account", "Delete Account"]], 
-                   image: getAppImg("userinput.png"))
-		}
-        
-		section("Page Selector: ") {
-			if (userSelectedOptionTwo =~ "Activate Account") {
-				paragraph "You must Install a device to continue", image: getAppImg("pickapage.png")
-                getToken()
-				href "kasaAddDevicesPage", title: "Install Devices to Continue!", description: "Tap to continue", image: getAppImg("adddevicespage.png")
-			}
-            
-			if (userSelectedOptionTwo =~ "Update Account") {
-				paragraph "You must select below to continue.", image: getAppImg("pickapage.png")
-				href "kasaUserSelectionTokenPage", title: "Token Manager Page", description: "Tap to continue", image: getAppImg("userselectiontokenpage.png")
-			}
-            
-			if (userSelectedOptionTwo =~ "Delete Account") {
-				paragraph "Select below to inactivate token and delete username and password!  Use the < at top left to back out.", image: getAppImg("pickapage.png")
-				settingRemove("userName")
-				settingRemove("userPassword")
-				state.TpLinkToken = null
-				href "welcomePage", title: "Introduction Page", description: "Tap to view", image: getAppImg("welcomepage.png")
-			}
-		}
-        
-		section("${textCopyright()}")
-	}
-}
-
-def hubEnterIpPage() {
-	def hubEnterIpPageText = "If possible, open the IDE and select Live Logging. Then, " +
-		"enter the static IP address for your gateway that runs the Node.js applet.  Assure "+
-		"that the node.js applet is running and logging to the display."
-	return dynamicPage (name: "hubEnterIpPage", title: "Set Gateway IP Page", nextPage: "",install: false, uninstall: false) {
-		section("") {
-			paragraph "${appLabel()}}", image: getAppImg("kasa.png")
-			if (state.currentError != null) {
-				paragraph title:"Error Status:", "${state.currentError}! Correct before continuing.", image: getAppImg("error.png")
-			} else {
-				paragraph "No detected program errors!"
-            }
-		}
-        
-		section("Information and Help: ", hideable: true, hidden: true) {
-        	paragraph title: "Program Information: ", appInfoDesc(), image: getAppImg("kasa.png")
-			paragraph title: "Help: ", hubEnterIpPageText, image: getAppImg("information.png")
-		}
-        
-		section("") {
-			input ("bridgeIp", 
-				"text", 
-                title: "Enter the Gateway IP", 
-                required: true, 
-                multiple: false, 
-                submitOnChange: true,
-                image: "https://s3.amazonaws.com/smartapp-icons/Internal/network-scanner.png"
-            )
-            if (bridgeIp) {
-	 			paragraph "Install a device to continue!", image: getAppImg("pickapage.png")
-				href "hubAddDevicesPage", title: "Install Devices to Continue!", description: "Tap to continue", image: getAppImg("adddevicespage.png")
-			}
-		}
-        
-		section("${textCopyright()}")
-	}
-}
-
 //	----- Connection Maintenance Pages -----
-def kasaUserAuthenticationPreferencesPage() {
-	def kasaUserAuthenticationPreferencesPageText = "If possible, open the IDE and select Live Logging. Then, " +
+def kasaAuthenticationSettingsPage() {
+	def page1Text = "If possible, open the IDE and select Live Logging. Then, " +
 		"enter your Username and Password for TP-Link (same as Kasa app) and the "+
 		"action you want to complete."
-	return dynamicPage (name: "kasaUserSelectionAuthenticationPage", title: "Login Settings Page", install: false, uninstall: false) {
+	return dynamicPage (name: "kasaAuthenticationSettingsPage", title: "Login Settings Page", install: false, uninstall: false) {
 		section("") {
-			paragraph "${appLabel()}}", image: getAppImg("kasa.png")
+			paragraph "${appLabel()}", image: getAppImg("kasa.png")
 			if (state.currentError != null) {
-				paragraph title:"Error Status:", "${state.currentError}! Correct before continuing.", image: getAppImg("error.png")
+				paragraph "ERROR:  ${state.currentError}! Correct before continuing.", image: getAppImg("error.png")
 			} else {
 				paragraph "No detected program errors!"
             }
 		}
         
-		section("Information and Help: ", hideable: true, hidden: true) {
+		section("Information and Instructions: ", hideable: true, hidden: true) {
         	paragraph title: "Program Information: ", appInfoDesc(), image: getAppImg("kasa.png")
-			paragraph title: "Help: ", kasaUserAuthenticationPreferencesPageText, image: getAppImg("information.png")
+            paragraph title: "Instructions", page1Text, image: getAppImg("information.png")
 		}
         
 		section("Account Configuration: ") {
@@ -342,314 +344,17 @@ def kasaUserAuthenticationPreferencesPage() {
 			input ("userPassword", "password", title: "TP-Link Kasa Account Password", required: true, submitOnChange: false, image: getAppImg("password.png"))
 		}
         
-		section("Page Selector: ") {
+		section("") {
 			paragraph "You must select below to continue", image: getAppImg("pickapage.png")
-			href "kasaUserSelectionTokenPage", title: "Token Manager Page", description: "Tap to continue", image: getAppImg("userselectiontokenpage.png")
+			href "kasaTokenManagerPage", title: "Token Manager Page", description: "Tap to continue", image: getAppImg("userselectiontokenpage.png")
         }
         
 		section("${textCopyright()}")
 	}
 }
 
-def hubUpdateIpPage() {
-	def hubUpdateIpPageText = "This page will update the Bridge IP Address in case it was changed.  " +
-    	"After entering the new IP, the system will automatically go to the device installation page.  " +
-        "This will automatically update the device IP and bridge IP for all installed devices."
-	return dynamicPage (name: "hubUpdateIpPage", title: "Update Gateway IP Page", nextPage: "",install: false, uninstall: false) {
-		section("") {
-			paragraph "${appLabel()}}", image: getAppImg("kasa.png")
-			if (state.currentError != null) {
-				paragraph title:"Error Status:", "${state.currentError}! Correct before continuing.", image: getAppImg("error.png")
-			} else {
-				paragraph "No detected program errors!"
-            }
-		}
-        
-		section("Information and Help: ", hideable: true, hidden: true) {
-        	paragraph title: "Program Information: ", appInfoDesc(), image: getAppImg("kasa.png")
-			paragraph title: "Help: ", hubUpdateIpPageText, image: getAppImg("information.png")
-		}
-        
-		section("") {
-			input ("bridgeIp", 
-				"text", 
-                title: "Enter the Gateway IP", 
-                required: true, 
-                multiple: false, 
-                submitOnChange: true,
-                image: "https://s3.amazonaws.com/smartapp-icons/Internal/network-scanner.png"
-            )
-            if (bridgeIp) {
-	 			paragraph "Install a device to continue!", image: getAppImg("pickapage.png")
-				href "hubAddDevicesPage", title: "Install Devices to Continue!", description: "Tap to continue", image: getAppImg("adddevicespage.png")
-			}
-		}
-        
-		section("${textCopyright()}")
-	}
-}
-
-//	----- ADD DEVICES PAGE -----
-def kasaAddDevicesPage() {
-	kasaGetDevices()
-	def devices = state.devices
-	def errorMsgDev = "None"
-	def newDevices = [:]
-	devices.each {
-		def isChild = getChildDevice(it.value.deviceMac)
-		if (!isChild) {
-			newDevices["${it.value.deviceMac}"] = "${it.value.alias} model ${it.value.deviceModel}"
-		}
-	}
-	if (devices == [:]) {
-		errorMsgDev = "We were unable to find any TP-Link Kasa devices on your account. This usually means "+
-		"that all devices are in 'Local Control Only'. Correct them then " + "rerun the application."
-	}
-	if (newDevices == [:]) {
-		errorMsgDev = "No new devices to add. Are you sure they are in Remote " + "Control Mode?"
-	}
-	def kasaAddDevicesPageText = "Devices that have not been previously installed and are not in 'Local " +
-		"WiFi control only' will appear below. Tap below to see the list of " +
-		"TP-Link Kasa Devices available select the ones you want to connect to " +
-		"SmartThings.\n" + "Press Done when you have selected the devices you " +
-		"wish to add, then press Save to add the devices to your SmartThings account."
-	return dynamicPage (name: "kasaAddDevicesPage", title: "Device Installer Page", install: true, uninstall: false) {
-		section("") {
-			paragraph "${appLabel()}}", image: getAppImg("kasa.png")
-			if (state.currentError != null) {
-				paragraph title:"Error Status:", "${state.currentError}! Correct before continuing.", image: getAppImg("error.png")
-			} else if (newDevices == [:] || devices == [:]) {
-            	paragraph title:"errorStatus:", errorMsgDev, image: getAppImg("error.png")
-            } else {
-				paragraph "No detected program errors!"
-            }
-		}
-        
-		section("Information and Help: ", hideable: true, hidden: true) {
-        	paragraph title: "Program Information: ", appInfoDesc(), image: getAppImg("kasa.png")
-			paragraph title: "Help: ", kasaAddDevicesPageText, image: getAppImg("information.png")
-		}
-        
- 		section("Device Controller: ") {
-			input ("userSelectedDevicesAdd", 
-            	   "enum", 
-                   required: true, 
-                   multiple: true, 
-//		  		   refreshInterval: 10,
-                   submitOnChange: true,
-                   title: "Select Devices to Add (${newDevices.size() ?: 0} found)", 
-                   metadata: [values:newDevices], 
-                   image: getAppImg("adddevices.png"))
-		}
-        
-		section("${textCopyright()}")
-	}
-}
-
-def hubAddDevicesPage() {
-	hubGetDevices()
-	def devices = state.devices
-	def errorMsgDev = "None"
-	def newDevices = [:]
-	devices.each {
-		def isChild = getChildDevice(it.value.deviceMac)
-		if (!isChild) {
-			newDevices["${it.value.deviceMac}"] = "${it.value.alias} model ${it.value.deviceModel}"
-		}
-	}
-	if (devices == [:]) {
-		errorMsgDev = "We were unable to find any TP-Link Kasa devices on your account. This usually means "+
-		"that all devices are in 'Local Control Only'. Correct them then " + "rerun the application."
-	}
-	if (newDevices == [:]) {
-		errorMsgDev = "No new devices to add. Are you sure they are in Remote " + "Control Mode?"
-	}
-	def hubAddDevicesPageText = "TO BE ADDED"
-	return dynamicPage(name:"hubAddDevicesPage",
-		title:"Add TP-Link Kasa Devices via Node.js",
-		nextPage:"",
-		refreshInterval: 10,
-        multiple: true,
-		install:true,
-		uninstall:false) {
-		section("") {
-			paragraph "${appLabel()}}", image: getAppImg("kasa.png")
-			if (state.currentError != null) {
-				paragraph title:"Error Status:", "${state.currentError}! Correct before continuing.", image: getAppImg("error.png")
-			} else if (newDevices == [:] || devices == [:]) {
-            	paragraph title:"errorStatus:", errorMsgDev, image: getAppImg("error.png")
-            } else {
-				paragraph "No detected program errors!"
-            }
-		}
-        
-		section("Information and Help: ", hideable: true, hidden: true) {
-        	paragraph title: "Program Information: ", appInfoDesc(), image: getAppImg("kasa.png")
-			paragraph title: "Help: ", hubAddDevicesPageText, image: getAppImg("information.png")
-		}
-        
- 		section("Device Controller: ") {
-			input ("userSelectedDevicesAdd", 
-            	   "enum", 
-                   required: true, 
-                   multiple: true, 
-		  		   refreshInterval: 10,
-                   submitOnChange: true,
-                   title: "Select Devices to Add (${newDevices.size() ?: 0} found)", 
-                   metadata: [values:newDevices], 
-                   image: getAppImg("adddevices.png"))
-		}
-	}
-}
-
-//	----- REMOVE DEVICES PAGE -----
-def removeDevicesPage() {
-//	getDevices()
-	def devices = state.devices
-	def errorMsgDev = "None"
-	def oldDevices = [:]
-	devices.each {
-		def isChild = getChildDevice(it.value.deviceMac)
-		if (isChild) {
-			oldDevices["${it.value.deviceMac}"] = "${it.value.alias} model ${it.value.deviceModel}"
-		}
-	}
-	if (devices == [:]) {
-		errorMsgDev = "We were unable to find any TP-Link Kasa devices on your account. This usually means "+
-		"that all devices are in 'Local Control Only'. Correct them then " + "rerun the application."
-	}
-	if (oldDevices == [:]) {
-		errorMsgDev = "There are no devices to remove from the SmartThings app at this time."
-	}
-	def removeDevicesPageText = "Devices that have been installed " +
-		"will appear below. Tap below to see the list of " +
-		"TP-Link Kasa Devices available select the ones you want to connect to " +
-		"SmartThings.\n" + "Press Done when you have selected the devices you " +
-		"wish to remove, then Press Save to remove the devices to your SmartThings account."
-	return dynamicPage (name: "removeDevicesPage", title: "Device Uninstaller Page", install: true, uninstall: false) {
-		section("") {
-			paragraph "${appLabel()}}", image: getAppImg("kasa.png")
-			if (state.currentError != null) {
-				paragraph title:"Error Status:", "${state.currentError}! Correct before continuing.", image: getAppImg("error.png")
-			} else {
-				paragraph "No detected program errors!"
-            }
-		}
-        
-		section("Information and Help: ", hideable: true, hidden: true) {
-        	paragraph title: "Program Information: ", appInfoDesc(), image: getAppImg("kasa.png")
-			paragraph title: "Help: ", removeDevicesPageText, image: getAppImg("information.png")
-		}
-        
-		section("Device Controller: ") {
-			input ("userSelectedDevicesRemove", "enum", required: true, multiple: true, submitOnChange: false, title: "Select Devices to Remove (${oldDevices.size() ?: 0} found)", metadata: [values:oldDevices], image: getAppImg("removedevices.png"))
-		}
-        
-		section("${textCopyright()}")
-	}
-}
-
-//	----- USER APPLICATION PREFERENCES PAGE -----
-def userApplicationPreferencesPage() {
-	def hiddenRecordInput = 0
-	def hiddenDeveloperInput = 0
-	if (userSelectedDeveloper) {
-		hiddenDeveloperInput = 1
-	} else {
-		hiddenDeveloperInput = 0
-	}
-	if ("${restrictedRecordPasswordPrompt}" =~ null) {
-		hiddenRecordInput = 0
-	} else {
-		hiddenRecordInput = 1
-	}
-	def userApplicationPreferencesPageText = "Welcome to the application settings page. \n" +
-		"Recommended options: Will allow your device to pick a option for you that you are likely to pick."
-	return dynamicPage (name: "userApplicationPreferencesPage", title: "Application Settings Page", install: true, uninstall: false) {
-		section("") {
-			paragraph "${appLabel()}}", image: getAppImg("kasa.png")
-			if (state.currentError != null) {
-				paragraph title:"Error Status:", "${state.currentError}! Correct before continuing.", image: getAppImg("error.png")
-			} else {
-				paragraph "No detected program errors!"
-            }
-		}
-        
-		section("Information and Help: ", hideable: true, hidden: true) {
-        	paragraph title: "Program Information: ", appInfoDesc(), image: getAppImg("kasa.png")
-			paragraph title: "Help: ", userApplicationPreferencesPageText, image: getAppImg("information.png")
-		}
-        
-		section("Application Configuration: ") {
-			input ("userSelectedNotification", "bool", title: "Do you want to enable notification?", submitOnChange: false, image: getAppImg("notification.png"))
-			input ("userSelectedAppIcons", "bool", title: "Do you want to disable application icons?", submitOnChange: false, image: getAppImg("noicon.png"))
-			input ("userSelectedBrowserMode", "bool", title: "Do you want to open all external links within the SmartThings app?", submitOnChange: false, image: getAppImg("browsermode.png"))
-			input ("userSelectedReload", "bool", title: "Do you want to refresh your current state?", submitOnChange: true, image: getAppImg("sync.png"))
-			if (userSelectedAppIcons && userSelectedReload || hiddenDeveloperInput == 1) {
-				hiddenDeveloperInput = 1
-				input ("userSelectedDeveloper", "bool", title: "Do you want to enable developer mode?", submitOnChange: true, image: getAppImg("developer.png"))
-			}
-			if (userSelectedDeveloper) {
-				input ("userSelectedTestingPage", "bool", title: "Do you want to enable developer testing mode?", submitOnChange: true, image: getAppImg("developertesting.png"))
-			}
-			if (userSelectedTestingPage && userSelectedReload || hiddenRecordInput == 1) {
-				hiddenRecordInput = 1
-				input ("restrictedRecordPasswordPrompt", type: "password", title: "This is a restricted record, Please input your password", description: "Hint: xKillerMaverick", required: false, submitOnChange: false, image: getAppImg("passwordverification.png"))
-			}
-			if (userSelectedReload) {
-				checkError()
-				setInitialStates()
-			} else {
-				settingUpdate("userSelectedReload", "false", "bool")
-			}
-		}
-        
-		section("${textCopyright()}")
-	}
-}
-
-//	----- USER DEVICE PREFERENCES PAGE -----
-def userDevicePreferencesPage() {
-//	getDevices()
-	def devices = state.devices
-	def oldDevices = [:]
-	devices.each {
-		def isChild = getChildDevice(it.value.deviceMac)
-		if (isChild) {
-			oldDevices["${it.value.deviceMac}"] = "${it.value.alias} model ${it.value.deviceModel}"
-		}
-	}
-
-	def userDevicePreferencesPageText = "Welcome to the Device Preferences page. \n" +
-		"Enter a value for Transition Time and Refresh Rate then select the devices that you want to update. \n" +
-		"After that you may procide to save by clicking the save button."
-	return dynamicPage (name: "userDevicePreferencesPage", title: "Device Preferences Page", install: true, uninstall: false) {
-		section("") {
-			paragraph "${appLabel()}}", image: getAppImg("kasa.png")
-			if (state.currentError != null) {
-				paragraph title:"Error Status:", "${state.currentError}! Correct before continuing.", image: getAppImg("error.png")
-			} else {
-				paragraph "No detected program errors!"
-            }
-		}
-        
-		section("Information and Help: ", hideable: true, hidden: true) {
-        	paragraph title: "Program Information: ", appInfoDesc(), image: getAppImg("kasa.png")
-			paragraph title: "Help: ", userDevicePreferencesPageText, image: getAppImg("information.png")
-		}
-        
-		section("Device Configuration: ") {
-			input ("userSelectedDevicesToUpdate", "enum", required: true, multiple: true, submitOnChange: false, title: "Select Devices to Update (${oldDevices.size() ?: 0} found)", metadata: [values: oldDevices], image: getAppImg("devices.png"))
-			input ("userLightTransTime", "enum", required: true, multiple: false, submitOnChange: false, title: "Lighting Transition Time", metadata: [values:["500" : "0.5 second", "1000" : "1 second", "1500" : "1.5 second", "2000" : "2 seconds", "2500" : "2.5 seconds", "5000" : "5 seconds", "10000" : "10 seconds", "20000" : "20 seconds", "40000" : "40 seconds", "60000" : "60 seconds"]], image: getAppImg("transition.png"))
-			input ("userRefreshRate", "enum", required: true, multiple: false, submitOnChange: false, title: "Device Refresh Rate", metadata: [values:["1" : "Refresh every minute", "5" : "Refresh every 5 minutes", "10" : "Refresh every 10 minutes", "15" : "Refresh every 15 minutes", "30" : "Refresh every 30 minutes"]], image: getAppImg("refresh.png"))
-		}
-
-		section("${textCopyright()}")
-	}
-}
-
-def kasaUserSelectionTokenPage() {
-	def kasaUserSelectionTokenPageText = "Your current token: ${state.TpLinkToken}" +
+def kasaTokenManagerPage() {
+	def page1Text = "Your current token: ${state.TpLinkToken}" +
 		"\nAvailable actions:\n" +
 		"Update Token: Updates the token on your SmartThings Account from your TP-Link Kasa Account. \n" +
 		"Remove Token: Removes the token on your SmartThings Account from your TP-Link Kasa Account. \n" +
@@ -661,19 +366,19 @@ def kasaUserSelectionTokenPage() {
 		if (state.currentError != null) {
 			errorMsgTok = "You may not be able to control your devices until you update your credentials."
 		}
-	dynamicPage (name: "kasaUserSelectionTokenPage", title: "Token Manager Page", install: false, uninstall: false) {
+	dynamicPage (name: "kasaTokenManagerPage", title: "Token Manager Page", install: false, uninstall: false) {
 		section("") {
-			paragraph "${appLabel()}}", image: getAppImg("kasa.png")
+			paragraph "${appLabel()}", image: getAppImg("kasa.png")
 			if (state.currentError != null) {
-				paragraph title:"Error Status:", "${state.currentError}! Correct before continuing.", image: getAppImg("error.png")
+				paragraph "ERROR:  ${state.currentError}! Correct before continuing.", image: getAppImg("error.png")
 			} else {
 				paragraph "No detected program errors!"
             }
 		}
         
-		section("Information and Help: ", hideable: true, hidden: true) {
+		section("Information and Instructions: ", hideable: true, hidden: true) {
         	paragraph title: "Program Information: ", appInfoDesc(), image: getAppImg("kasa.png")
-			paragraph title: "Help: ", kasaUserSelectionTokenPageText, image: getAppImg("information.png")
+            paragraph title: "Instructions", page1Text, image: getAppImg("information.png")
 		}
         
 		section("Account Status: ") {
@@ -698,15 +403,12 @@ def kasaUserSelectionTokenPage() {
 			} else {
 				paragraph sendingCommandFailed(), image: getAppImg("issue.png")
 			}
-            
 			if (userSelectedOptionThree =~ "Update Token") {
 				getToken()
 			}
-            
 			if (userSelectedOptionThree =~ "Delete Token") {
 				state.TpLinkToken = null
 			}
-            
 			if (userSelectedOptionThree =~ "Recheck Token") {
 				checkError()
 			}
@@ -716,21 +418,373 @@ def kasaUserSelectionTokenPage() {
 	}
 }
 
-def uninstallPage() {
-	def uninstallPageText = "This will uninstall the All Child Devices including this Application with all it's user data. \nPlease make sure that any devices created by this app are removed from any routines/rules/smartapps before tapping Remove."
-	dynamicPage (name: "uninstallPage", title: "Uninstall Page", install: false, uninstall: true) {
+def hubUpdateIpPage() {
+	def page1Text = "This page will update the Bridge IP Address in case it was changed.  " +
+    	"After entering the new IP, the system will automatically go to the device installation page.  " +
+        "This will automatically update the device IP and bridge IP for all installed devices."
+	return dynamicPage (name: "hubUpdateIpPage", title: "Update Gateway IP Page", nextPage: "",install: false, uninstall: false) {
 		section("") {
-			paragraph "${appLabel()}}", image: getAppImg("kasa.png")
+			paragraph "${appLabel()}", image: getAppImg("kasa.png")
 			if (state.currentError != null) {
-				paragraph title:"Error Status:", "${state.currentError}! Correct before continuing.", image: getAppImg("error.png")
+				paragraph "ERROR:  ${state.currentError}! Correct before continuing.", image: getAppImg("error.png")
 			} else {
 				paragraph "No detected program errors!"
             }
 		}
         
-		section("Information and Help: ", hideable: true, hidden: true) {
+		section("Information and Instructions: ", hideable: true, hidden: true) {
         	paragraph title: "Program Information: ", appInfoDesc(), image: getAppImg("kasa.png")
-			paragraph title: "Help: ", uninstallPageText, image: getAppImg("information.png")
+            paragraph title: "Instructions", page1Text, image: getAppImg("information.png")
+		}
+        
+		section("") {
+			input ("bridgeIp", 
+				"text", 
+                title: "Enter the Gateway IP", 
+                required: true, 
+                multiple: false, 
+                submitOnChange: true,
+                image: "https://s3.amazonaws.com/smartapp-icons/Internal/network-scanner.png"
+            )
+            if (bridgeIp) {
+	 			paragraph "Install a device to continue!", image: getAppImg("pickapage.png")
+				href "hubAddDevicesPage", title: "Install Devices to Continue!", description: "Tap to continue", image: getAppImg("adddevicespage.png")
+			}
+		}
+        
+		section("${textCopyright()}")
+	}
+}
+
+//	----- ADD DEVICES PAGE -----
+def kasaAddDevicesPage() {
+	getToken()
+	kasaGetDevices()
+	def devices = state.devices
+	def errorMsgDev
+	def newDevices = [:]
+	devices.each {
+		def isChild = getChildDevice(it.value.deviceMac)
+		if (!isChild) {
+			newDevices["${it.value.deviceMac}"] = "${it.value.alias} model ${it.value.deviceModel}"
+		}
+	}
+	if (devices == [:]) {
+		errorMsgDev = "We were unable to find any TP-Link Kasa devices on your account. This usually means "+
+		"that all devices are in 'Local Control Only'. Correct them then " + "rerun the application."
+	}
+	if (newDevices == [:]) {
+		errorMsgDev = "No new devices to add. Are you sure they are in Remote " + "Control Mode?"
+	}
+	def page1Text = "Devices that have not been previously installed and are not in 'Local " +
+		"WiFi control only' will appear below. Tap below to see the list of " +
+		"TP-Link Kasa Devices available select the ones you want to connect to " +
+		"SmartThings.\n" + "Press Done when you have selected the devices you " +
+		"wish to add, then press Save to add the devices to your SmartThings account."
+	return dynamicPage (name: "kasaAddDevicesPage", title: "Kasa Device Installer Page", install: true, uninstall: false) {
+		section("") {
+			paragraph "${appLabel()}", image: getAppImg("kasa.png")
+			if (state.currentError != null) {
+				paragraph "ERROR:  ${state.currentError}! Correct before continuing.", image: getAppImg("error.png")
+            } else if (errorMsgDev != null) {
+				paragraph "ERROR:  ${errorMSgDev}", image: getAppImg("error.png")
+			} else {
+				paragraph "No detected program errors!"
+            }
+		}
+        
+		section("Information and Instructions: ", hideable: true, hidden: true) {
+        	paragraph title: "Program Information: ", appInfoDesc(), image: getAppImg("kasa.png")
+            paragraph title: "Instructions", page1Text, image: getAppImg("information.png")
+		}
+        
+ 		section("Device Controller: ") {
+			input ("userSelectedDevicesAdd", 
+            	   "enum", 
+                   required: true, 
+                   multiple: true, 
+                   submitOnChange: true,
+                   title: "Select Devices to Add (${newDevices.size() ?: 0} found)", 
+                   metadata: [values:newDevices], 
+                   image: getAppImg("adddevices.png"))
+		}
+        
+		section("${textCopyright()}")
+	}
+}
+
+def hubAddDevicesPage() {
+	hubGetDevices()
+	def devices = state.devices
+	def errorMsgDev
+	def newDevices = [:]
+	devices.each {
+		def isChild = getChildDevice(it.value.deviceMac)
+		if (!isChild) {
+			newDevices["${it.value.deviceMac}"] = "${it.value.alias} model ${it.value.deviceModel}"
+		}
+	}
+	if (devices == [:]) {
+		errorMsgDev = "Looking for devices.  If this message persists, we have been unable to find " +
+        "TP-Link devices on your wifi.  Check: 1) SmartThings logs, 2) node.js logfile for "
+	} else if (newDevices == [:]) {
+		errorMsgDev = "No new devices to add. Check: 1) Device installed to Kasa properly, " +
+        "2) The SmartThings MyDevices (in case already installed)."
+	}
+    def page1Text = ""
+    def page2Text = ""
+    def page3Text = ""
+    def page4Text = ""
+    def page5Text = ""
+    def page6Text = ""
+	page1Text = "This page installs the devices through the running node applet. "
+    page1Text += "On initial installation, an error will be displayed until the "
+    page1Text += "node applet returns the device data."
+    page2Text = "1.  Assure that the node applet is running."
+    page3Text = "2.  Wait for a device count equal to your devices to appear in "
+    page3Text += "'Selet Devices to Add' string."
+    page4Text = "3.  Select the devices you want to install."
+    page5Text = "4.  Select 'DONE' in upper right corner to install the devices and "
+    page5Text += "install the Application."
+    page6Text = "5.  To cancel, select '<' in the upper left corner."
+	return dynamicPage(name:"hubAddDevicesPage",
+		title:"Node Applet: Add TP-Link Devices",
+		nextPage:"",
+		refreshInterval: 10,
+        multiple: true,
+		install:true,
+		uninstall:false) {
+		section("") {
+			paragraph "${appLabel()}", image: getAppImg("kasa.png")
+			if (state.currentError != null) {
+				paragraph "ERROR:  ${state.currentError}! Correct before continuing.", image: getAppImg("error.png")
+            } else if (errorMsgDev != null) {
+				paragraph "ERROR:  ${errorMSgDev}", image: getAppImg("error.png")
+			} else {
+				paragraph "No detected program errors!"
+            }
+		}
+        
+		section("Information and Instructions: ", hideable: true, hidden: true) {
+        	paragraph title: "Program Information: ", appInfoDesc(), image: getAppImg("kasa.png")
+            paragraph title: "Instructions", page1Text, image: getAppImg("information.png")
+            paragraph page2Text
+            paragraph page3Text
+            paragraph page4Text
+            paragraph page5Text
+            paragraph page6Text
+		}
+        
+ 		section("Device Controller: ") {
+			input ("userSelectedDevicesAdd", 
+            	   "enum", 
+                   required: true, 
+                   multiple: true, 
+		  		   refreshInterval: 10,
+                   submitOnChange: true,
+                   title: "Select Devices to Add (${newDevices.size() ?: 0} found)", 
+                   metadata: [values:newDevices], 
+                   image: getAppImg("adddevices.png"))
+		}
+    
+		section("${textCopyright()}")
+	}
+}
+
+//	----- REMOVE DEVICES PAGE -----
+def removeDevicesPage() {
+	def devices = state.devices
+	def errorMsgDev
+	def oldDevices = [:]
+	devices.each {
+		def isChild = getChildDevice(it.value.deviceMac)
+		if (isChild) {
+			oldDevices["${it.value.deviceMac}"] = "${it.value.alias} model ${it.value.deviceModel}"
+		}
+	}
+	if (devices == [:]) {
+		errorMsgDev = "Devices database was cleared in-error.  Run Device Installer Page to correct " +
+        "then try again.  You can also remove devices using the SmartThings IDE or either version " +
+        "of the phone app."
+	}
+	if (oldDevices == [:]) {
+		errorMsgDev = "There are no devices to remove from the SmartThings app at this time.  This " +
+        "implies no devices are installed."
+	}
+	def page1Text = "Devices that have been installed " +
+		"will appear below. Tap below to see the list of " +
+		"TP-Link Kasa Devices available select the ones you want to connect to " +
+		"SmartThings.\n" + "Press Done when you have selected the devices you " +
+		"wish to remove, then Press Save to remove the devices to your SmartThings account."
+	return dynamicPage (name: "removeDevicesPage", title: "Device Uninstaller Page", install: true, uninstall: false) {
+		section("") {
+			paragraph "${appLabel()}", image: getAppImg("kasa.png")
+			if (state.currentError != null) {
+				paragraph "ERROR:  ${state.currentError}! Correct before continuing.", image: getAppImg("error.png")
+            } else if (errorMsgDev != null) {
+				paragraph "ERROR:  ${errorMSgDev}", image: getAppImg("error.png")
+            } else if (errorMsgDev != null) {
+				paragraph "ERROR:  ${errorMSgDev}.", image: getAppImg("error.png")
+			} else {
+				paragraph "No detected program errors!"
+            }
+		}
+        
+		section("Information and Instructions: ", hideable: true, hidden: true) {
+        	paragraph title: "Program Information: ", appInfoDesc(), image: getAppImg("kasa.png")
+            paragraph title: "Instructions", page1Text, image: getAppImg("information.png")
+		}
+        
+		section("Device Controller: ") {
+			input ("userSelectedDevicesRemove", "enum", required: true, multiple: true, submitOnChange: false, title: "Select Devices to Remove (${oldDevices.size() ?: 0} found)", metadata: [values:oldDevices], image: getAppImg("removedevices.png"))
+		}
+        
+		section("${textCopyright()}")
+	}
+}
+
+//	----- USER APPLICATION PREFERENCES PAGE -----
+def applicationPreferencesPage() {
+	def hiddenRecordInput = 0
+	def hiddenDeveloperInput = 0
+	if (userSelectedDeveloper) {
+		hiddenDeveloperInput = 1
+	} else {
+		hiddenDeveloperInput = 0
+	}
+	if ("${restrictedRecordPasswordPrompt}" =~ null) {
+		hiddenRecordInput = 0
+	} else {
+		hiddenRecordInput = 1
+	}
+    def page1Text = ""
+    def page2Text = ""
+    def page3Text = ""
+    def page4Text = ""
+    def page5Text = ""
+    def page6Text = ""
+    page1Text += "Enable Notification.  If enabled will push a message to you smartphone."
+    page2Text += "Disable Icons.  Will disable most of the application icons.  Icons can "
+    page2Text += "cause a network error on the new SmartThings phone app.  Disabling "
+    page2Text += "using the classic app could alleviate this problem."
+    page3Text += "Open External Links in SmartThings.  Will open external link calls "
+    page3Text += "in SmartThings."
+    page4Text += "Refresh States.  Refreshes current state."
+    page5Text += "Saving or Exiting.  This page is saved by selecting the 'SAVE' in the upper righht hand "
+    page5Text += "top of the page.  To exit w/o saving, use the '<' in the upper left hand corner."
+
+	return dynamicPage (name: "applicationPreferencesPage", title: "Application Preferences Page", install: true, uninstall: false) {
+		section("") {
+			paragraph "${appLabel()}", image: getAppImg("kasa.png")
+			if (state.currentError != null) {
+				paragraph "ERROR:  ${state.currentError}! Correct before continuing.", image: getAppImg("error.png")
+			} else {
+				paragraph "No detected program errors!"
+            }
+		}
+        
+		section("Information and Instructions: ", hideable: true, hidden: true) {
+        	paragraph title: "Program Information: ", appInfoDesc(), image: getAppImg("kasa.png")
+            paragraph title: "Instructions", page1Text, image: getAppImg("information.png")
+            paragraph page2Text
+            paragraph page3Text
+            paragraph page4Text
+            paragraph page5Text
+            paragraph page6Text
+		}
+        
+		section("Application Configuration: ") {
+			input ("userSelectedNotification", "bool", title: "Do you want to enable notification?", submitOnChange: false, image: getAppImg("notification.png"))
+			input ("userSelectedAppIcons", "bool", title: "Do you want to disable application icons?", submitOnChange: false, image: getAppImg("noicon.png"))
+			input ("userSelectedBrowserMode", "bool", title: "Do you want to open all external links within the SmartThings app?", submitOnChange: false, image: getAppImg("browsermode.png"))
+			input ("userSelectedReload", "bool", title: "Do you want to refresh your current state?", submitOnChange: true, image: getAppImg("sync.png"))
+			if (userSelectedAppIcons && userSelectedReload || hiddenDeveloperInput == 1) {
+				hiddenDeveloperInput = 1
+				input ("userSelectedDeveloper", "bool", title: "Do you want to enable developer mode?", submitOnChange: true, image: getAppImg("developer.png"))
+			}
+			if (userSelectedDeveloper) {
+				input ("userSelectedTestingPage", "bool", title: "Do you want to enable developer testing mode?", submitOnChange: true, image: getAppImg("developertesting.png"))
+			}
+			if (userSelectedTestingPage && userSelectedReload || hiddenRecordInput == 1) {
+				hiddenRecordInput = 1
+				input ("restrictedRecordPasswordPrompt", type: "password", title: "This is a restricted record, Please input your password", description: "Hint: xKillerMaverick", required: false, submitOnChange: false, image: getAppImg("passwordverification.png"))
+			}
+			if (userSelectedReload) {
+				checkError()
+				setInitialStates()
+			} else {
+				settingUpdate("userSelectedReload", "false", "bool")
+			}
+            paragraph "Save options: select 'NEXT' (upper right).  Return: select '<' (upper left)."
+		}
+        
+		section("${textCopyright()}")
+	}
+}
+
+//	----- USER DEVICE PREFERENCES PAGE -----
+def devicePreferencesPage() {
+	def devices = state.devices
+	def oldDevices = [:]
+	devices.each {
+		def isChild = getChildDevice(it.value.deviceMac)
+		if (isChild) {
+			oldDevices["${it.value.deviceMac}"] = "${it.value.alias} model ${it.value.deviceModel}"
+		}
+	}
+
+	def page1Text = ""
+    def page2Text = ""
+    def page3Text = ""
+    page1Text += "Transition Time.  The light transition time that allows the light to fade on and off. "
+    page1Text += "Applies to bulbs only.  If filled-in, is ignored for plugs and switches."
+    page2Text += "Refresh Rate.  Allows selecting a refresh rate other than the default of every 30 minutes."
+    page3Text += "Saving or Exiting.  This page is saved by selecting the 'SAVE' in the upper righht hand "
+    page3Text += "top of the page.  To exit w/o saving, use the '<' in the upper left hand corner."
+    
+	return dynamicPage (name: "devicePreferencesPage", title: "Device Preferences Page", install: true, uninstall: false) {
+		section("") {
+			paragraph "${appLabel()}", image: getAppImg("kasa.png")
+			if (state.currentError != null) {
+				paragraph "ERROR:  ${state.currentError}! Correct before continuing.", image: getAppImg("error.png")
+			} else {
+				paragraph "No detected program errors!"
+            }
+		}
+        
+		section("Information and Instructions: ", hideable: true, hidden: true) {
+        	paragraph title: "Program Information: ", appInfoDesc(), image: getAppImg("kasa.png")
+            paragraph title: "Instructions", page1Text, image: getAppImg("information.png")
+            paragraph page2Text
+            paragraph page3Text
+		}
+        
+		section("Device Configuration: ") {
+			input ("userSelectedDevicesToUpdate", "enum", required: true, multiple: true, submitOnChange: false, title: "Select Devices to Update (${oldDevices.size() ?: 0} found)", metadata: [values: oldDevices], image: getAppImg("devices.png"))
+			input ("userLightTransTime", "enum", required: true, multiple: false, submitOnChange: false, title: "Lighting Transition Time", metadata: [values:["500" : "0.5 second", "1000" : "1 second", "1500" : "1.5 second", "2000" : "2 seconds", "2500" : "2.5 seconds", "5000" : "5 seconds", "10000" : "10 seconds", "20000" : "20 seconds", "40000" : "40 seconds", "60000" : "60 seconds"]], image: getAppImg("transition.png"))
+			input ("userRefreshRate", "enum", required: true, multiple: false, submitOnChange: false, title: "Device Refresh Rate", metadata: [values:["1" : "Refresh every minute", "5" : "Refresh every 5 minutes", "10" : "Refresh every 10 minutes", "15" : "Refresh every 15 minutes", "30" : "Refresh every 30 minutes"]], image: getAppImg("refresh.png"))
+            paragraph "Save options: select 'NEXT' (upper right).  Return: select '<' (upper left)."
+		}
+
+		section("${textCopyright()}")
+	}
+}
+
+def uninstallPage() {
+	def page1Text = "This will uninstall the All Child Devices including this Application with all it's user data. \nPlease make sure that any devices created by this app are removed from any routines/rules/smartapps before tapping Remove."
+	dynamicPage (name: "uninstallPage", title: "Uninstall Page", install: false, uninstall: true) {
+		section("") {
+			paragraph "${appLabel()}", image: getAppImg("kasa.png")
+			if (state.currentError != null) {
+				paragraph "ERROR:  ${state.currentError}! Correct before continuing.", image: getAppImg("error.png")
+			} else {
+				paragraph "No detected program errors!"
+            }
+		}
+        
+		section("Information and Instructions: ", hideable: true, hidden: true) {
+        	paragraph title: "Program Information: ", appInfoDesc(), image: getAppImg("kasa.png")
+            paragraph title: "Instructions", page1Text, image: getAppImg("information.png")
 		}
         
 		section("${textCopyright()}")
@@ -778,15 +832,6 @@ def getToken() {
 			sendEvent(name: "TokenUpdate", value: state.currentError)
 		}
 	}
-}
-
-def getDevices() {
-	def currentDevices
-	if (installType == "Kasa Account") {
-		return kasaGetDevices()
-    } else {
-    	return hubGetDevices()
-    }
 }
 
 def kasaGetDevices() {
@@ -837,9 +882,9 @@ def kasaGetDevices() {
 }
 
 def hubGetDevices() {
+	runIn(10, createBridgeError)
 	def headers = [:]
-//	headers.put("HOST", "${bridgeIp}:8082")	//	Same as on Hub.
-	headers.put("HOST", "192.168.0.132:8082")	//	Same as on Hub.
+	headers.put("HOST", "${bridgeIp}:8082")	//	Same as on Hub.
 	headers.put("command", "pollForDevices")
 	sendHubCommand(new physicalgraph.device.HubAction([headers: headers], null, [callback: hubExtractDeviceData]))
 }
@@ -866,7 +911,16 @@ def hubExtractDeviceData(response) {
 		}
 		log.info "Device ${it.alias} added to devices array"
 	}
-//    return hubAddDevicesPage()
+    log.info "Node Applet Bridge Status: OK"
+    unschedule(createBridgeError)
+	state.currentError = null
+	sendEvent(name: "currentError", value: null)
+}
+
+def createBridgeError() {
+    log.info "Node Applet Bridge Status: Not Accessible"
+	state.currentError = "Node Applet not acessible"
+	sendEvent(name: "currentError", value: "Node Applet Not Accessible")
 }
 
 //	----- ACTION PAGES. Add, Delete, Update Devices.  Remove App -----
@@ -1039,9 +1093,9 @@ def updated() {
 def initialize() {
 	unsubscribe()
 	unschedule()
-	if (installType == "Kasa Application"){
-	    runEvery5Minutes(checkError)
+	if (installType == "Kasa Account"){
 		schedule("0 30 2 ? * WED", getToken)
+		runEvery5Minutes(checkError)
     }
     if (installType == "Node Applet") { runEvery10Minutes(hubGetDevices) }
 	runEvery3Hours(cleanStorage)
@@ -1055,7 +1109,7 @@ def uninstalled() {
 	uninstManagerApp()
 }
 
-//	----- PERIODIC CLOUD MX TASKS -----
+//	----- PERIODIC CLOUD and HUB TASKS -----
 def checkError() {
 	if (state.currentError == null || state.currentError == "none") {
 		log.info "${appLabel()} did not find any errors."
@@ -1396,9 +1450,9 @@ def developerPage() {
 			href "kasaAddDevicesPage", title: "Cloud Device Installer Page", description: "Tap to view", image: getAppImg("adddevicespage.png")
 			href "hubAddDevicesPage", title: "Hub Device Installer Page", description: "Tap to view", image: getAppImg("adddevicespage.png")
 			href "removeDevicesPage", title: "Cloud Device Uninstaller Page", description: "Tap to view", image: getAppImg("removedevicespage.png")
-			href "userApplicationPreferencesPage", title: "Cloud Application Settings Page", description: "Tap to view", image: getAppImg("userapplicationpreferencespage.png")
-			href "userDevicePreferencesPage", title: "Cloud Device Preferences Page", description: "Tap to view", image: getAppImg("userdevicepreferencespage.png")
-			href "kasaUserSelectionTokenPage", title: "Token Manager Page", description: "Tap to view", image: getAppImg("userselectiontokenpage.png")
+			href "applicationPreferencesPage", title: "Cloud Application Settings Page", description: "Tap to view", image: getAppImg("userapplicationpreferencespage.png")
+			href "devicePreferencesPage", title: "Cloud Device Preferences Page", description: "Tap to view", image: getAppImg("userdevicepreferencespage.png")
+			href "kasaTokenManagerPage", title: "Token Manager Page", description: "Tap to view", image: getAppImg("userselectiontokenpage.png")
 			if (userSelectedTestingPage) {
 				href "developerPage", title: "Developer Page", description: "You are currently on this page", image: getAppImg("developerpage.png")
 				href "developerTestingPage", title: "Developer Testing Page", description: "Tap to view", image: getAppImg("testingpage.png")
