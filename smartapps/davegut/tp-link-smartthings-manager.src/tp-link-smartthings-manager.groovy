@@ -60,9 +60,7 @@ preferences {
 	page(name: "startPage")
 	page(name: "welcomePage")
 	page(name: "hubEnterIpPage")
-	page(name: "kasaInitialAuthenticationPage")
-	page(name: "kasaAuthenticationSettingsPage")
-	page(name: "hubUpdateIpPage")
+	page(name: "kasaAuthenticationPage")
 	page(name: "kasaAddDevicesPage")
 	page(name: "hubAddDevicesPage")
 	page(name: "removeDevicesPage")
@@ -105,7 +103,7 @@ def startPage() {
 	setInitialStates()
     if (installType) {
 		if (installType == "Kasa Account" && userName == null && password == null) {
-			return kasaInitialAuthenticationPage()       	
+			return kasaAuthenticationPage()       	
 		} else if (installType == "Node Applet" && bridgeIp == null) {
 			return hubEnterIpPage()
 		} else {
@@ -158,13 +156,22 @@ def startPage() {
 }
 
 //	----- Main first (landing) Pages -----
-def kasaInitialAuthenticationPage() {
-	def page1Text = "If possible, open the IDE and select Live Logging. Then, " +
-		"enter your Username and Password for the TP-Link Kasa Application. \n\r\n\r"+
-		"After entering all credentials, select 'Install Devices to Continue'.  This " +
-		"will call the Add Devices page.\n\r\n\r" +
-		"You must select and add a device to install the application!"
-	return dynamicPage (name: "kasaInitialAuthenticationPage", 
+def kasaAuthenticationPage() {
+	def loginType = "initial"
+	if ("userPassword" == null) {
+		def page1Text = "If possible, open the IDE and select Live Logging. Then, " +
+			"enter your Username and Password for the TP-Link Kasa Application. \n\r\n\r"+
+			"After entering all credentials, select 'Install Devices to Continue'.  This " +
+			"will call the Add Devices page.\n\r\n\r" +
+			"You must select and add a device to install the application!"
+    } else {
+    	loginType = "update"
+		def page1Text = "If possible, open the IDE and select Live Logging. Then, " +
+			"enter your Username and Password for TP-Link (same as Kasa app) and the "+
+			"action you want to complete."
+    }
+    
+	return dynamicPage (name: "kasaAuthenticationPage", 
     		title: "Initial Kasa Login Page", 
             nextPage: "kasaAddDevicesPage", 
             install: false, 
@@ -189,12 +196,16 @@ def kasaInitialAuthenticationPage() {
 		}
         
 		section("") {
-			if (state.currentError != null) {
-				paragraph "Error! Exit program and try again after resolving problem. ${state.currentError}!", image: getAppImg("error.png")
-			} else if (userName != null && userPassword != null) {
- 				href "kasaAddDevicesPage", title: "Install Devices to Continue!", description: "Tap to continue", image: getAppImg("adddevicespage.png")
+        	if (loginType == "initial") {
+				if (state.currentError != null) {
+					paragraph "Error! Exit program and try again after resolving problem. ${state.currentError}!", image: getAppImg("error.png")
+				} else if (userName != null && userPassword != null) {
+	 				href "kasaAddDevicesPage", title: "Install Devices to Continue!", description: "Tap to continue", image: getAppImg("adddevicespage.png")
+				}
+            } else {
+				href "kasaTokenManagerPage", title: "Token Manager Page", description: "Tap to continue", image: getAppImg("userselectiontokenpage.png")
 			}
-		}
+    	}
         
 		section("Help and Feedback: ", hideable: true, hidden: true) {
 			href url: getWikiPageUrl(), style: "${strBrowserMode()}", title: "View the Projects Wiki", description: "Tap to open in browser", state: "complete", image: getAppImg("help.png")
@@ -214,7 +225,7 @@ def hubEnterIpPage() {
 	def page1Text = "If possible, open the IDE and select Live Logging. Then, " +
 		"enter the static IP address for your gateway that runs the Node.js applet.  Assure "+
 		"that the node.js applet is running and logging to the display."
-	return dynamicPage (name: "hubEnterIpPage", title: "Set Gateway IP Page", nextPage: "",install: false, uninstall: false) {
+	return dynamicPage (name: "hubEnterIpPage", title: "Set Gateway IP", nextPage: "",install: false, uninstall: false) {
 		section("") {
 			paragraph "${appLabel()}", image: getAppImg("kasa.png")
 			if (state.currentError != null) {
@@ -286,10 +297,10 @@ def welcomePage() {
         
 		section("Settings and Preferences: ") {
             if (installType == "Kasa Account") {
-				href "kasaAuthenticationSettingsPage", title: "Login Settings Page", 
+				href "kasaAuthenticationPage", title: "Login Settings Page", 
                 	description: "Tap to view", image: getAppImg("userauthenticationpreferencespage.png")
             }	else {
-				href "hubUpdateIpPage", title: "Update Gateway IP Page", description: "Tap to view", 
+				href "hubEnterIpPage", title: "Update Gateway IP Page", description: "Tap to view", 
                 	image: "https://s3.amazonaws.com/smartapp-icons/Internal/network-scanner.png"
 			}
 			href "applicationPreferencesPage", title: "Application Settings Page", description: "Tap to view", image: getAppImg("userapplicationpreferencespage.png")
@@ -319,7 +330,7 @@ def welcomePage() {
 	}
 }
 
-//	----- Connection Maintenance Pages -----
+/*
 def kasaAuthenticationSettingsPage() {
 	def page1Text = "If possible, open the IDE and select Live Logging. Then, " +
 		"enter your Username and Password for TP-Link (same as Kasa app) and the "+
@@ -352,6 +363,7 @@ def kasaAuthenticationSettingsPage() {
 		section("${textCopyright()}")
 	}
 }
+*/
 
 def kasaTokenManagerPage() {
 	def page1Text = "Your current token: ${state.TpLinkToken}" +
@@ -411,44 +423,6 @@ def kasaTokenManagerPage() {
 			}
 			if (userSelectedOptionThree =~ "Recheck Token") {
 				checkError()
-			}
-		}
-        
-		section("${textCopyright()}")
-	}
-}
-
-def hubUpdateIpPage() {
-	def page1Text = "This page will update the Bridge IP Address in case it was changed.  " +
-    	"After entering the new IP, the system will automatically go to the device installation page.  " +
-        "This will automatically update the device IP and bridge IP for all installed devices."
-	return dynamicPage (name: "hubUpdateIpPage", title: "Update Gateway IP Page", nextPage: "",install: false, uninstall: false) {
-		section("") {
-			paragraph "${appLabel()}", image: getAppImg("kasa.png")
-			if (state.currentError != null) {
-				paragraph "ERROR:  ${state.currentError}! Correct before continuing.", image: getAppImg("error.png")
-			} else {
-				paragraph "No detected program errors!"
-            }
-		}
-        
-		section("Information and Instructions: ", hideable: true, hidden: true) {
-        	paragraph title: "Program Information: ", appInfoDesc(), image: getAppImg("kasa.png")
-            paragraph title: "Instructions", page1Text, image: getAppImg("information.png")
-		}
-        
-		section("") {
-			input ("bridgeIp", 
-				"text", 
-                title: "Enter the Gateway IP", 
-                required: true, 
-                multiple: false, 
-                submitOnChange: true,
-                image: "https://s3.amazonaws.com/smartapp-icons/Internal/network-scanner.png"
-            )
-            if (bridgeIp) {
-	 			paragraph "Install a device to continue!", image: getAppImg("pickapage.png")
-				href "hubAddDevicesPage", title: "Install Devices to Continue!", description: "Tap to continue", image: getAppImg("adddevicespage.png")
 			}
 		}
         
