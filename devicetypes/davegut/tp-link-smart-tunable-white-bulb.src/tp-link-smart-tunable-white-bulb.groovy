@@ -135,7 +135,7 @@ def installed() {
 	log.info "Installing ${device.label}..."
     setRefreshRate(30)
     setLightTransTime("1000")
-	if (getDataValue("installType") == null) { setInstallType("Cloud") }
+	if (getDataValue("installType") == null) { setInstallType("Node Applet") }
 }
 
 def ping() {
@@ -145,7 +145,7 @@ def ping() {
 def updated() {
 	log.info "Updating ${device.label}..."
 	unschedule()
-    if (getDataValue("installType") == null) { setInstallType("Kasa Account") }
+    if (getDataValue("installType") == null) { setInstallType("Node Applet") }
 	if (refresh_Rate) { setRefreshRate(refreshRate) }
     if (transition_Time) { setLightTransTime(transitionTime) }
     if (device_IP) { setDeviceId(device_IP) }
