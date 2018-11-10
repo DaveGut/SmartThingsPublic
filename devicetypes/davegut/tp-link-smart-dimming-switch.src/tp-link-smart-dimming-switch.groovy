@@ -110,7 +110,7 @@ def ping() {
 	refresh()
 }
 
-def updated() {
+def update() {
 	log.info "Updating ${device.label}..."
 	unschedule()
     if (getDataValue("installType") == null) { setInstallType("Node Applet") }

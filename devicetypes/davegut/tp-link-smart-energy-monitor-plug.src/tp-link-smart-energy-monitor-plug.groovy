@@ -141,7 +141,7 @@ def ping() {
 	refresh()
 }
 
-def updated() {
+def update() {
 	log.info "Updating ${device.label}..."
 	state.emon = metadata.definition.energyMonitor
 	state.emeterText = "emeter"
