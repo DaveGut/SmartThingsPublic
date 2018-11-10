@@ -143,12 +143,16 @@ def ping() {
 }
 
 def update() {
+    runIn(2, updated)
+}
+
+def updated() {
 	log.info "Updating ${device.label}..."
 	unschedule()
     if (getDataValue("installType") == null) { setInstallType("Node Applet") }
 	if (refresh_Rate) { setRefreshRate(refreshRate) }
     if (transition_Time) { setLightTransTime(transitionTime) }
-    if (device_IP) { setDeviceId(device_IP) }
+    if (device_IP) { setDeviceIP(device_IP) }
     if (gateway_IP) { setGatewayIP(gateway_IP) }
     if (install_Type) { setInstallType(install_Type) }
 	sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson(["protocol":"cloud", "scheme":"untracked"]), displayed: false)
