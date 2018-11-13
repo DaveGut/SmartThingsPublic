@@ -1,12 +1,9 @@
 /*
 TP-Link Connect Service Manager, 2018 Version 2
-
 Copyright 2018 Dave Gutheinz
-
 Licensed under the Apache License, Version 2.0 (the "License"); you 
 may not use this file except in compliance with the License. You may 
 obtain a copy of the License at:
-
 	http://www.apache.org/licenses/LICENSE-2.0
 		
 Unless required by applicable law or agreed to in writing, software 
@@ -14,18 +11,15 @@ distributed under  the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or 
 implied. See the License for the specific language governing 
 permissions and limitations under the License.
-
 ##### Discalimer:  This Service Manager and the associated Device 
 Handlers are in no way sanctioned or supported by TP-Link.  All  
 development is based upon open-source data on the TP-Link devices; 
 primarily various users on GitHub.com.
-
 ##### Notes #####
 1.	This Service Manager is designed to install and manage TP-Link 
 	bulbs, plugs, and switches using their respective device handlers.
 2.	Please direct comments to the SmartThings community thread 
 	'Cloud TP-Link Device SmartThings Integration'.
-
 ##### History #####
 2018-01-31	Updated for new release of Device Handlers
 */
@@ -176,31 +170,31 @@ def getDevices() {
 def addDevices() {
 	def tpLinkModel = [:]
 	//	Plug-Switch Devices (no energy monitor capability)
-	tpLinkModel << ["HS100" : "TP-Link Smart Plug"]						//	HS100
-	tpLinkModel << ["HS103" : "TP-Link Smart Plug"]						//	HS103
-	tpLinkModel << ["HS105" : "TP-Link Smart Plug"]						//	HS105
-	tpLinkModel << ["HS200" : "TP-Link Smart Switch"]					//	HS200
-	tpLinkModel << ["HS210" : "TP-Link Smart Switch"]					//	HS210
-	tpLinkModel << ["KP100" : "TP-Link Smart Plug"]						//	KP100
-	//	Dimming Switch Devices
-	tpLinkModel << ["HS220" : "TP-Link Smart Dimming Switch"]			//	HS220
+	tpLinkModel << ["HS100" : "(Cloud) TP-Link Plug-Switch"]			//	HS100
+	tpLinkModel << ["HS103" : "(Cloud) TP-Link Plug-Switch"]			//	HS103
+	tpLinkModel << ["HS105" : "(Cloud) TP-Link Plug-Switch"]			//	HS105
+	tpLinkModel << ["HS200" : "(Cloud) TP-Link Plug-Switch"]			//	HS200
+	tpLinkModel << ["HS210" : "(Cloud) TP-Link Plug-Switch"]			//	HS210
+	tpLinkModel << ["KP100" : "(Cloud) TP-Link Plug-Switch"]			//	KP100
+	//	Dimming Plug Devices
+	tpLinkModel << ["HS220" : "(Cloud) TP-Link Dimming Switch"]			//	HS220
 	//	Energy Monitor Plugs
-	tpLinkModel << ["HS110" : "TP-Link Smart Energy Monitor Plug"]		//	HS110
-	tpLinkModel << ["HS115" : "TP-Link Smart Energy Monitor Plug"]		//	HS110
+	tpLinkModel << ["HS110" : "(Cloud) TP-Link EnergyMonitor Plug"]		//	HS110
+	tpLinkModel << ["HS115" : "(Cloud) TP-Link EnergyMonitor Plug"]		//	HS110
 	//	Soft White Bulbs
-	tpLinkModel << ["KB100" : "TP-Link Smart Soft White Bulb"]			//	KB100
-	tpLinkModel << ["LB100" : "TP-Link Smart Soft White Bulb"]			//	LB100
-	tpLinkModel << ["LB110" : "TP-Link Smart Soft White Bulb"]			//	LB110
-	tpLinkModel << ["KL110" : "TP-Link Smart Soft White Bulb"]			//	KL110
-	tpLinkModel << ["LB200" : "TP-Link Smart Soft White Bulb"]			//	LB200
+	tpLinkModel << ["KB100" : "(Cloud) TP-Link SoftWhite Bulb"]			//	KB100
+	tpLinkModel << ["LB100" : "(Cloud) TP-Link SoftWhite Bulb"]			//	LB100
+	tpLinkModel << ["LB110" : "(Cloud) TP-Link SoftWhite Bulb"]			//	LB110
+	tpLinkModel << ["KL110" : "(Cloud) TP-Link SoftWhite Bulb"]			//	KL110
+	tpLinkModel << ["LB200" : "(Cloud) TP-Link SoftWhite Bulb"]			//	LB200
 	//	Tunable White Bulbs
-	tpLinkModel << ["LB120" : "TP-Link Smart Tunable White Bulb"]		//	LB120
-	tpLinkModel << ["KL120" : "TP-Link Smart Tunable White Bulb"]		//	KL120
+	tpLinkModel << ["LB120" : "(Cloud) TP-Link TunableWhite Bulb"]		//	LB120
+	tpLinkModel << ["KL120" : "(Cloud) TP-Link TunableWhite Bulb"]		//	KL120
 	//	Color Bulbs
-	tpLinkModel << ["KB130" : "TP-Link Smart Color Bulb"]				//	KB130
-	tpLinkModel << ["LB130" : "TP-Link Smart Color Bulb"]				//	LB130
-	tpLinkModel << ["KL130" : "TP-Link Smart Color Bulb"]				//	KL130
-	tpLinkModel << ["LB230" : "TP-Link Smart Color Bulb"]				//	LB230
+	tpLinkModel << ["KB130" : "(Cloud) TP-Link Color Bulb"]				//	KB130
+	tpLinkModel << ["LB130" : "(Cloud) TP-Link Color Bulb"]				//	LB130
+	tpLinkModel << ["KL130" : "(Cloud) TP-Link Color Bulb"]				//	KL130
+	tpLinkModel << ["LB230" : "(Cloud) TP-Link Color Bulb"]				//	LB230
 
 	def hub = location.hubs[0]
 	def hubId = hub.id
