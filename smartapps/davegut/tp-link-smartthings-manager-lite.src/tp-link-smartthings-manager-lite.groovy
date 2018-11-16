@@ -1,10 +1,16 @@
 /*
 TP-Link SmartThings Manager and TP-Link Cloud Connect, 2018 Version 4
+
+Lite version with less information and no gitHub Icons.
+
 	Copyright 2018 Dave Gutheinz, Anthony Ramirez
+    
 Licensed under the Apache License, Version 2.0 (the "License"); you
 may not use this file except in compliance with the License. You may
 obtain a copy of the License at:
+
 	http://www.apache.org/licenses/LICENSE-2.0
+    
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
@@ -13,9 +19,16 @@ permissions and limitations under the License.
 Discalimer: This Service Manager and the associated Device
 Handlers are in no way sanctioned or supported by TP-Link. All
 development is based upon open-source data on the TP-Link Kasa Devices;
-primarily various users on GitHub.com.*/
-
-//	====== Application Information =====
+primarily various users on GitHub.com.
+	====== Application History ================================
+11-14-2015	Finalized version 3.5 for public release.  Changes
+			a.  Added support for hub-based device installation and
+            	management.
+            b.	Added capability to set device preferences (not
+            	available in new phone app).
+            c.	Added capability to remove devices.
+            d.	Reworked HMI and improved information.
+	====== Application Information ==========================*/
 	def textCopyright()	{ return "Copyright© 2018 - Dave Gutheinz, Anthony Ramirez" }
 	def appNamespace() { return "davegut" }
 	def appLabel() { return "TP-Link SmartThings Manager (lite)" }
@@ -483,9 +496,9 @@ def devicePreferencesPage() {
 	            metadata: [values: oldDevices])
 			input ("userLightTransTime", "enum", required: true, multiple: false, 
 	            submitOnChange: false, title: "Lighting Transition Time", 
-            metadata: [values:["500" : "0.5 second", "1000" : "1 second", "1500" : "1.5 second", "2000" : "2 seconds", "2500" : "2.5 seconds", "5000" : "5 seconds", "10000" : "10 seconds", "20000" : "20 seconds", "40000" : "40 seconds", "60000" : "60 seconds"]])
+            metadata: [values:["500" : "0.5 second", "1000" : "1 second", "1500" : "1.5 second", "2000" : "2 seconds", "2500" : "2.5 seconds", "5000" : "5 seconds", "10000" : "10 seconds"]])
 				input ("userRefreshRate", "enum", required: true, multiple: false, 
- 	           submitOnChange: false, title: "Device Refresh Rate", metadata: [values:["1" : "Refresh every minute", "5" : "Refresh every 5 minutes", "10" : "Refresh every 10 minutes", "15" : "Refresh every 15 minutes", "30" : "Refresh every 30 minutes"]])
+ 	           submitOnChange: false, title: "Device Refresh Rate", metadata: [values:["1" : "Refresh every minute", "5" : "Refresh every 5 minutes", "10" : "Refresh every 10 minutes", "15" : "Refresh every 15 minutes"]])
             paragraph "Save options: select 'NEXT' (upper right).  Return: select '<' (upper left)."
 		}
 
@@ -495,7 +508,6 @@ def devicePreferencesPage() {
 
 //	----- Maintenance Pages -----
 def uninstallPage() {
-log.error "at uninstallPage"
 	def page1Text = "This will uninstall the All Child Devices including this Application with all it's user data. \nPlease make sure that any devices created by this app are removed from any routines/rules/smartapps before tapping Remove."
 	dynamicPage (name: "uninstallPage", title: "Uninstall Page", install: false, uninstall: true) {
 		section("") {
