@@ -124,7 +124,6 @@ metadata {
 
 	preferences {
 		input ("refresh_Rate", "enum", title: "Device Refresh Rate", options: refreshRate, image: getDevImg("refresh.png"))
-		input ("install_Type", "enum", title: "Installation Type", options: ["Node Applet", "Kasa Account"])
 		input ("device_IP", "text", title: "Device IP (Hub Only, NNN.NNN.N.NNN)")
 		input ("gateway_IP", "text", title: "Gateway IP (Hub Only, NNN.NNN.N.NNN)")
 	}
@@ -134,7 +133,10 @@ metadata {
 def installed() {
 	log.info "Installing ${device.label}..."
     setRefreshRate(10)
-	if (getDataValue("installType") == null) { setInstallType("Node Applet") }
+	if(getDataValue("installType") == null) {
+		setInstallType("Node Applet")
+	}
+    update()
 }
 
 def ping() {
@@ -170,11 +172,10 @@ def updated() {
 void uninstalled() {
 	try {
 		def alias = device.label
-		log.debug "Removing device ${alias} with DNI = ${device.deviceNetworkId}"
+		log.info "Removing device ${alias} with DNI = ${device.deviceNetworkId}"
 		parent.removeChildDevice(alias, device.deviceNetworkId)
 	} catch (ex) {
-		log.debug "${device.name} ${device.label}: Either the device was manually installed or there was an error"
-        log.debug "Command Exception: ", ex
+		log.info "${device.name} ${device.label}: No Parent Application.  Either the device was manually installed or there was an error"
 	}
 }
 
