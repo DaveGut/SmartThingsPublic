@@ -281,7 +281,7 @@ def getPrevMonth() {
 		prevMonth = prevMonth + 1
 		runIn(4, getJan)
 	}
-	sendCmdtoServer("""{"${state.emeterText}":{"get_daystat":{"month": ${prevMonth}, "year": ${state.yearStart}}}}""", "emeterCmd", "UseJanWatts")
+	sendCmdtoServer("""{"${state.emeterText}":{"get_daystat":{"month": ${prevMonth}, "year": ${state.yearStart}}}}""", "emeterCmd", "engrStatsResponse")
 }
 
 def getJan() {
@@ -409,8 +409,9 @@ def currentDateResponse(cmdResponse) {
 
 //	----- SEND COMMAND TO CLOUD VIA SM -----
 private sendCmdtoServer(command, hubCommand, action) {
+    def installType = getDataValue("installType")
 	try {
-		if (installType() == "Cloud") {
+		if (installType == "Kasa Account") {
 			sendCmdtoCloud(command, hubCommand, action)
 		} else {
 			sendCmdtoHub(command, hubCommand, action)
@@ -441,6 +442,8 @@ private sendCmdtoCloud(command, hubCommand, action){
 
 private sendCmdtoHub(command, hubCommand, action){
 	def headers = [:] 
+    def deviceIP = getDataValue("deviceIP")
+    def gatewayIP = getDataValue("gatewayIP")
 	headers.put("HOST", "$gatewayIP:8082")	//	Same as on Hub.
 	headers.put("tplink-iot-ip", deviceIP)
 	headers.put("tplink-command", command)
