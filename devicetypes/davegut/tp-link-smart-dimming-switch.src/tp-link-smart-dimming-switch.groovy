@@ -32,25 +32,24 @@ TP-Link devices; primarily various users on GitHub.com.
            	With great appreciation to Anthony Ramirez for
             his assistance as well as leading the development
             of the new Service Manager.
-12.07.18	3.5.03.  Corrected refresh rate update issue.
+12.07.18	3.5.03.	Corrected refresh rate update issue.
+12.22.18	3.6.01.	Various updates to reduce code maintenance
+			and better interact with SmartApp.
 ======== DO NOT EDIT LINES BELOW ===*/
 //	===== Device Type Identifier =====
 //	def deviceType()	{ return "Plug" }
 //	def deviceType()	{ return "Switch" }
 	def deviceType()	{ return "Dimming Switch" }	
-//	====== Device Namespace =====
-	def devNamespace()	{ return "davegut" }
-//	def devNamespace()	{ return "ramiran2" }
-//	====== Other System Values =====
+//	def deviceType()	{ return "Multi-Plug" }	
 	def ocfValue() { return (deviceType() == "Plug") ? "oic.d.smartplug" : "oic.d.switch" }
 	def vidValue() { return (deviceType() == "Dimming Switch") ? "generic-dimmer" : "generic-switch" }
 	def deviceIcon()	{ return (deviceType() == "Plug") ? "st.Appliances.appliances17" : "st.Home.home30" }
-	def devVer()	{ return "3.5.03" }
+	def devVer()	{ return "3.6.01" }
 //	======================================================================================================================
 
 metadata {
 	definition (name: "TP-Link Smart ${deviceType()}", 
-    			namespace: "${devNamespace()}", 
+    			namespace: "davegut", 
                 author: "Dave Gutheinz, Anthony Ramirez", 
                 ocfDeviceType: "${ocfValue()}", 
                 mnmn: "SmartThings", 
@@ -61,8 +60,6 @@ metadata {
 		if (deviceType() == "Dimming Switch") {
 			capability "Switch Level"
 		}
-		attribute "devVer", "string"
-		attribute "devTyp", "string"
 	}
 	tiles(scale: 2) {
 		multiAttributeTile(name: "switch", type: "lighting", width: 6, height: 4, canChangeIcon: true){
@@ -101,17 +98,16 @@ metadata {
 	preferences {
 		input ("refresh_Rate", "enum", title: "Device Refresh Rate", options: refreshRate)
 		input ("device_IP", "text", title: "Device IP (Hub Only, NNN.NNN.N.NNN)")
-		input ("gateway_IP", "text", title: "Gateway IP (Hub Only, NNN.NNN.N.NNN)")
+		input ("gateway_IP", "text", title: "Hub IP (Hub Only, NNN.NNN.N.NNN)")
+		input ("plug_No", "text", title: "Number of the plug (00, 01, 02, etc) (Multi-Plug Only")
 	}
 }
 
 //	===== Update when installed or setting changed =====
 def installed() {
 	log.info "Installing ${device.label}..."
-    setRefreshRate(10)
-	if(getDataValue("installType") == null) {
-		setInstallType("Node Applet")
-	}
+    updateDataValue("refreshRate", "10")
+	if(getDataValue("installType") == null) { updateDataValue("installType", "Manual") }
     update()
 }
 
@@ -126,33 +122,51 @@ def update() {
 def updated() {
 	log.info "Updating ${device.label}..."
 	unschedule()
-    if (getDataValue("installType") == null) { setInstallType("Node Applet") }
-	if (refreshRate) { setRefreshRate(refresh_Rate) }
+	if (!refresh_Rate) {
+    	setRefreshRate(getDataValue("refreshRate"))
+    } else {
+    	setRefreshRate(refresh_Rate)
+    }
     if (device_IP) { setDeviceIP(device_IP) }
     if (gateway_IP) { setGatewayIP(gateway_IP) }
+    if (getDataValue("InstallType")== "Manual" && getDataValue("deviceIP") && getDataValue("gatewayIP") && plugNo) {
+		sendCmdtoServer('{"system" :{"get_sysinfo" :{}}}', "deviceCommand", "parsePlugId")
+    }
 	sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson(["protocol":"cloud", "scheme":"untracked"]), displayed: false)
-	sendEvent(name: "devVer", value: devVer(), displayed: false)
-	sendEvent(name: "devTyp", value: deviceType(), displayed: false)
+    if (getDataValue("installType") == "Manual") { updateDataValue("deviceDriverVersion", devVer())  }
 	runIn(2, refresh)
 }
 
-void uninstalled() {
-	try {
-		def alias = device.label
-		log.info "Removing device ${alias} with DNI = ${device.deviceNetworkId}"
-		parent.removeChildDevice(alias, device.deviceNetworkId)
-	} catch (ex) {
-		log.info "${device.name} ${device.label}: No Parent Application.  Either the device was manually installed or there was an error"
-	}
+def parsePlugId(cmdResponse) {
+	def deviceData = cmdResponse.system.get_sysinfo
+	def plugId = "${deviceData.deviceId}${plug_No}"
+	updateDataValue("plugId", plugId)
+	log.info "${device.name} ${device.label}: Plug ID set to ${plugId}"
+}
+
+def uninstalled() {
+	log.info "${device.label} uninstalled.  Farewell!"
 }
 
 //	===== Basic Plug Control/Status =====
 def on() {
-	sendCmdtoServer('{"system" :{"set_relay_state" :{"state" : 1}}}', "deviceCommand", "commandResponse")
+	if (deviceType() != "Multi-Plug") {
+		sendCmdtoServer("""{"system" :{"set_relay_state" :{"state" : 1}}}""", "deviceCommand", "commandResponse")
+	} else {
+		def plugId = getDataValue("plugId")
+		sendCmdtoServer("""{"context":{"child_ids":["${plugId}"]},"system":{"set_relay_state":{"state": 1}}}""",
+					"deviceCommand", "commandResponse")
+	}
 }
 
 def off() {
-	sendCmdtoServer('{"system" :{"set_relay_state" :{"state" : 0}}}', "deviceCommand", "commandResponse")
+	if (deviceType() != "Multi-Plug") {
+		sendCmdtoServer("""{"system" :{"set_relay_state" :{"state" : 0}}}""", "deviceCommand", "commandResponse")
+	} else {
+		def plugId = getDataValue("plugId")
+		sendCmdtoServer("""{"context":{"child_ids":["${plugId}"]},"system":{"set_relay_state":{"state": 0}}}""",
+					"deviceCommand", "commandResponse")
+	}
 }
 
 def setLevel(percentage) {
@@ -170,33 +184,47 @@ def refresh(){
 }
 
 def refreshResponse(cmdResponse){
-	def onOff = cmdResponse.system.get_sysinfo.relay_state
-	if (onOff == 1) {
-		onOff = "on"
+	def onOff
+	if (deviceType() != "Multi-Plug") {
+		def onOffState = cmdResponse.system.get_sysinfo.relay_state
+		if (onOffState == 1) {
+			onOff = "on"
+		} else {
+			onOff = "off"
+		}
 	} else {
-		onOff = "off"
+		def children = cmdResponse.system.get_sysinfo.children
+		def plugId = getDataValue("plugId")
+		children.each {
+			if (it.id == plugId) {
+				if (it.state == 1) {
+					onOff = "on"
+				} else {
+					onOff = "off"
+				}
+			}
+		}
 	}
 	sendEvent(name: "switch", value: onOff)
 	if (deviceType() == "Dimming Switch") {
 		def level = cmdResponse.system.get_sysinfo.brightness
 	 	sendEvent(name: "level", value: level)
-		log.info "${device.name} ${device.label}: Power: ${onOff} / Dimmer Level: ${level}%"
+		log.info "${device.label}: Power: ${onOff} / Dimmer Level: ${level}%"
 	} else {
-		log.info "${device.name} ${device.label}: Power: ${onOff}"
+		log.info "${device.label}: Power: ${onOff}"
 	}
 }
 
 //	===== Send the Command =====
 private sendCmdtoServer(command, hubCommand, action) {
 	try {
-    	def installType = getDataValue("installType")
-		if (installType == "Kasa Account") {
+		if (getDataValue("installType") == "Kasa Account") {
 			sendCmdtoCloud(command, hubCommand, action)
 		} else {
 			sendCmdtoHub(command, hubCommand, action)
 		}
 	} catch (ex) {
-		log.error "Sending Command Exception: ${ex}.  Communications error with device."
+		log.error "${device.label}: Sending Command Exception: ${ex}.  Communications error with device."
 	}
 }
 
@@ -207,8 +235,8 @@ private sendCmdtoCloud(command, hubCommand, action){
 	String cmdResp = cmdResponse.toString()
 	if (cmdResp.substring(0,5) == "ERROR"){
 		def errMsg = cmdResp.substring(7,cmdResp.length())
-		log.error "${device.name} ${device.label}: ${errMsg}"
-		sendEvent(name: "switch", value: "commsError", descriptionText: errMsg)
+		log.error "${device.label}: ${errMsg}"
+		sendEvent(name: "switch", value: "unavailable", descriptionText: errMsg)
 		sendEvent(name: "deviceError", value: errMsg)
 		sendEvent(name: "DeviceWatch-DeviceStatus", value: "offline", displayed: false, isStateChange: true)
 		action = ""
@@ -220,10 +248,16 @@ private sendCmdtoCloud(command, hubCommand, action){
 }
 
 private sendCmdtoHub(command, hubCommand, action){
-	def headers = [:]
+	def gatewayIP = getDataValue("gatewayIP")
     def deviceIP = getDataValue("deviceIP")
-    def gatewayIP = getDataValue("gatewayIP")
-	headers.put("HOST", "$gatewayIP:8082")	//	Same as on Hub.
+	if (deviceIP =~ null && gatewayIP =~ null) {
+		sendEvent(name: "switch", value: "unavailable", descriptionText: "Please input Device IP / Gateway IP")
+		sendEvent(name: "deviceError", value: "No Hub Address Data")
+		sendEvent(name: "DeviceWatch-DeviceStatus", value: "offline", displayed: false, isStateChange: true)
+		log.error "${device.label}: Invalid IP.  Please check and update."
+	}
+	def headers = [:]
+	headers.put("HOST", "$gatewayIP:8082")
 	headers.put("tplink-iot-ip", deviceIP)
 	headers.put("tplink-command", command)
 	headers.put("action", action)
@@ -235,8 +269,8 @@ def hubResponseParse(response) {
 	def action = response.headers["action"]
 	def cmdResponse = parseJson(response.headers["cmd-response"])
 	if (cmdResponse == "TcpTimeout") {
-		log.error "$device.name $device.label: Communications Error"
-		sendEvent(name: "switch", value: "offline", descriptionText: "ERROR at hubResponseParse TCP Timeout")
+		log.error "${device.label}: Communications Error"
+		sendEvent(name: "switch", value: "offline", descriptionText: "ERROR - OffLine in hubResponseParse")
 		sendEvent(name: "deviceError", value: "TCP Timeout in Hub")
 		sendEvent(name: "DeviceWatch-DeviceStatus", value: "offline", displayed: false, isStateChange: true)
 	} else {
@@ -248,68 +282,93 @@ def hubResponseParse(response) {
 
 def actionDirector(action, cmdResponse) {
 	switch(action) {
-		case "commandResponse" :
+		case "commandResponse":
 			refresh()
 			break
-		case "refreshResponse" :
+		case "refreshResponse":
 			refreshResponse(cmdResponse)
 			break
+		case "energyMeterResponse":
+			energyMeterResponse(cmdResponse)
+			break
+		case "useTodayResponse":
+			useTodayResponse(cmdResponse)
+			break
+		case "currentDateResponse":
+			currentDateResponse(cmdResponse)
+			break
+		case "engrStatsResponse":
+			engrStatsResponse(cmdResponse)
+			break
+		case "parsePlugId" :
+			parsePlugId(cmdResponse)
+			break
 		default:
-			log.debug "Interface Error.	See SmartApp and Device error message."
+			log.info "${device.label}: Interface Error.	See SmartApp and Device error message."
 	}
 }
 
 //	===== Child / Parent Interchange =====
 def setAppServerUrl(newAppServerUrl) {
 	updateDataValue("appServerUrl", newAppServerUrl)
-	log.info "Updated appServerUrl for ${device.name} ${device.label}"
+	log.info "${device.label}: Updated appServerUrl."
 }
 
-def setLightTransTime(lightTransTime) {
-	return
+def setLightTransTime(newTransTime) {
+	switch (deviceType()) {
+    	case "Soft White Bulb":
+        case "Tunable White Bulb":
+        case "Color Bulb":
+			def transitionTime = newTransTime.toInteger()
+			def transTime = 1000*transitionTime
+			updateDataValue("transTime", "${transTime}")
+			log.info "${device.label}: Light Transition Time for set to ${transTime} milliseconds."
+			break
+        default:
+        	return
+    }
 }
 
 def setRefreshRate(refreshRate) {
+	updateDataValue("refreshRate", refreshRate)
 	switch(refreshRate) {
 		case "1" :
 			runEvery1Minute(refresh)
-			log.info "${device.name} ${device.label} Refresh Scheduled for every minute"
+			log.info "${device.label}: Refresh Scheduled for every minute."
 			break
 		case "5" :
 			runEvery5Minutes(refresh)
-			log.info "${device.name} ${device.label} Refresh Scheduled for every 5 minutes"
+			log.info "${device.label}: Refresh Scheduled for every 5 minutes."
 			break
 		case "10" :
 			runEvery10Minutes(refresh)
-			log.info "${device.name} ${device.label} Refresh Scheduled for every 10 minutes"
-			break
-		case "15" :
-			runEvery15Minutes(refresh)
-			log.info "${device.name} ${device.label} Refresh Scheduled for every 15 minutes"
+			log.info "${device.label}: Refresh Scheduled for every 10 minutes."
 			break
 		default:
-			runEvery10Minutes(refresh)
-			log.info "${device.name} ${device.label} Refresh Scheduled for every 10 minutes"
+			runEvery15Minutes(refresh)
+			log.info "${device.label}: Refresh Scheduled for every 15 minutes."
 	}
 }
 
 def setDeviceIP(deviceIP) { 
-	updateDataValue("deviceIP", deviceIP) 
-	log.info "${device.name} ${device.label} device IP set to ${deviceIP}"
+	updateDataValue("deviceIP", deviceIP)
+	log.info "${device.label}: device IP set to ${deviceIP}."
 }
 
 def setGatewayIP(gatewayIP) { 
-	updateDataValue("gatewayIP", gatewayIP) 
-	log.info "${device.name} ${device.label} gateway IP set to ${gatewayIP}"
+	updateDataValue("gatewayIP", gatewayIP)
+	log.info "${device.label}: hub IP set to ${gatewayIP}."
 }
 
-def setInstallType(installType) {
-	updateDataValue("installType", installType)
-	log.info "${device.name} ${device.label} Installation Type set to ${installType}"
+def setAppVersion(appVersion) {
+	updateDataValue("appVersion", appVersion)
+    updateDataValue("deviceVersion", devVer())
+    log.info "${device.label}: Update appVersion and deviceVersion"
 }
 
-//	===== GitHub Values =====
-	def getDevImg(imgName)	{
-    	return "https://raw.githubusercontent.com/${devNamespace()}/TP-Link-SmartThing/master/images/$imgName" 
-    }
+def setHubVersion(hubVersion) {
+	updateDataValue("hubVersion", hubVersion)
+    log.info "${device.label}: Updated Hub v.ersion"
+}
+
 //end-of-file
