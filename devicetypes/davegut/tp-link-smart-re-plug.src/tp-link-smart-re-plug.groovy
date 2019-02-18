@@ -20,7 +20,7 @@ All  development is based upon open-source data on the TP-Link devices; primaril
 ======== DO NOT EDIT LINES BELOW ===========================*/
 	def devVer()	{ return "4.0.01" }
 metadata {
-	definition (name: "TP-Link Smart Plug", 
+	definition (name: "TP-Link Smart RE Plug", 
     			namespace: "davegut", 
                 author: "Dave Gutheinz, Anthony Ramirez", 
                 ocfDeviceType: "oic.d.smartplug", 
@@ -34,16 +34,9 @@ metadata {
 		multiAttributeTile(name: "switch", type: "lighting", width: 6, height: 4, canChangeIcon: true){
 			tileAttribute ("device.switch", key: "PRIMARY_CONTROL") {
 				attributeState "on", label:'${name}', action: "switch.off", icon: "st.Appliances.appliances17", backgroundColor: "#00a0dc",
-				nextState: "waiting"
+				nextState: "off"
 				attributeState "off", label:'${name}', action: "switch.on", icon: "st.Appliances.appliances17", backgroundColor: "#ffffff",
-				nextState: "waiting"
-				attributeState "waiting", label:'${name}', action: "switch.on", icon: "st.Appliances.appliances17", backgroundColor: "#15EE10",
-				nextState: "waiting"
-				attributeState "Unavailable", label:'Unavailable', action: "switch.on", icon: "st.Appliances.appliances17", backgroundColor: "#e86d13",
-				nextState: "waiting"
-			}
-			tileAttribute ("deviceError", key: "SECONDARY_CONTROL") {
-				attributeState "deviceError", label: '${currentValue}'
+				nextState: "on"
 			}
 		}
 		standardTile("refresh", "capability.refresh", width: 2, height: 1, decoration: "flat") {
@@ -52,37 +45,28 @@ metadata {
 		main("switch")
 		details("switch", "refresh")
 	}
-    
     def refreshRate = [:]
     refreshRate << ["1" : "Refresh every minute"]
     refreshRate << ["5" : "Refresh every 5 minutes"]
 	refreshRate << ["10" : "Refresh every 10 minutes"]
     refreshRate << ["15" : "Refresh every 15 minutes"]
     refreshRate << ["30" : "Refresh every 30 minutes"]
-
 	preferences {
 		input ("refresh_Rate", "enum", title: "Device Refresh Rate", options: refreshRate)
 		input ("device_IP", "text", title: "Device IP (Hub Only, NNN.NNN.N.NNN)")
 		input ("gateway_IP", "text", title: "Hub IP (Hub Only, NNN.NNN.N.NNN)")
 	}
 }
-
 //	===== Update when installed or setting changed =====
 def installed() {
 	log.info "Installing ${device.label}..."
-    updateDataValue("refreshRate", "10")
+    updateDataValue("refreshRate", "30")
 	if(getDataValue("installType") == null) { updateDataValue("installType", "Manual") }
     update()
 }
-
-def ping() {
-	refresh()
-}
-
 def update() {
     runIn(2, updated)
 }
-
 def updated() {
 	log.info "Updating ${device.label}..."
 	unschedule()
@@ -97,27 +81,23 @@ def updated() {
     if (getDataValue("installType") == "Manual") { updateDataValue("deviceDriverVersion", devVer())  }
 	runIn(2, refresh)
 }
-
 def uninstalled() {
 	log.info "${device.label} uninstalled.  Farewell!"
 }
-
-//	===== Basic Plug Control/Status =====
 def on() {
-	sendCmdtoServer("""{"system" :{"set_relay_state" :{"state" : 1}}}""", "deviceCommand", "commandResponse")
+	sendEvent(name: "switch", value: "on")
+    runIn(3, refresh)
 }
-
 def off() {
-	sendCmdtoServer("""{"system" :{"set_relay_state" :{"state" : 0}}}""", "deviceCommand", "commandResponse")
+	sendEvent(name: "switch", value: "off")
+    runIn(3, refresh)
 }
-
 def refresh(){
 	sendCmdtoServer('{"system" :{"get_sysinfo" :{}}}', "deviceCommand", "refreshResponse")
 }
-
 def refreshResponse(cmdResponse){
-	def onOffState = cmdResponse.system.get_sysinfo.relay_state
-	if (onOffState == 1) {
+	def onOffState = cmdResponse.system.get_sysinfo.plug.relay_status
+	if (onOffState == "ON") {
 		sendEvent(name: "switch", value: "on")
 		log.info "${device.label}: Power: on"
 	} else {
@@ -125,7 +105,9 @@ def refreshResponse(cmdResponse){
 		log.info "${device.label}: Power: off"
 	}
 }
-
+def parse(response) {
+log.error response
+}
 //	===== Send the Command =====
 private sendCmdtoServer(command, hubCommand, action) {
 	try {
@@ -138,7 +120,6 @@ private sendCmdtoServer(command, hubCommand, action) {
 		log.error "${device.label}: Sending Command Exception: ${ex}.  Communications error with device."
 	}
 }
-
 private sendCmdtoCloud(command, hubCommand, action){
 	def appServerUrl = getDataValue("appServerUrl")
 	def deviceId = getDataValue("deviceId")
@@ -155,9 +136,8 @@ private sendCmdtoCloud(command, hubCommand, action){
 		sendEvent(name: "DeviceWatch-DeviceStatus", value: "online", displayed: false, isStateChange: true)
 		sendEvent(name: "deviceError", value: "OK")
 	}
-	actionDirector(action, cmdResponse)
+	refreshResponse(cmdResponse)
 }
-
 private sendCmdtoHub(command, hubCommand, action){
 	def gatewayIP = getDataValue("gatewayIP")
     def deviceIP = getDataValue("deviceIP")
@@ -175,7 +155,6 @@ private sendCmdtoHub(command, hubCommand, action){
 	headers.put("command", hubCommand)
 	sendHubCommand(new physicalgraph.device.HubAction([headers: headers], device.deviceNetworkId, [callback: hubResponseParse]))
 }
-
 def hubResponseParse(response) {
 	def action = response.headers["action"]
 	def cmdResponse = parseJson(response.headers["cmd-response"])
@@ -187,24 +166,9 @@ def hubResponseParse(response) {
 	} else {
 		sendEvent(name: "deviceError", value: "OK")
 		sendEvent(name: "DeviceWatch-DeviceStatus", value: "online", displayed: false, isStateChange: true)
-		actionDirector(action, cmdResponse)
+		refreshResponse(cmdResponse)
 	}
 }
-
-def actionDirector(action, cmdResponse) {
-	switch(action) {
-		case "commandResponse":
-			refresh()
-			break
-		case "refreshResponse":
-			refreshResponse(cmdResponse)
-			break
-		default:
-			log.info "${device.label}: Interface Error.	See SmartApp and Device error message."
-	}
-}
-
-//	===== Child / Parent Interchange =====
 def setRefreshRate(refreshRate) {
 	updateDataValue("refreshRate", refreshRate)
 	switch(refreshRate) {

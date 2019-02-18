@@ -1,43 +1,24 @@
-/*
-TP-Link Plug and Switch Device Handler, 2018, Version 3
-	Copyright 2018 Dave Gutheinz and Anthony Ramirez
+/*	TP Link Plugs and Switches Device Handler, 2019 Version 4
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the
+	Copyright 2018, 2019 Dave Gutheinz and Anthony Ramirez
+
+Licensed under the Apache License, Version 2.0(the "License"); you may not use this  file except in compliance with the
 License. You may obtain a copy of the License at:
 
 	http://www.apache.org/licenses/LICENSE-2.0
 
-Unless required by applicable law or agreed to in writing, 
-software distributed under the License is distributed on an 
-"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, 
-either express or implied. See the License for the specific 
-language governing permissions and limitations under the 
-License.
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an 
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific 
+language governing permissions and limitations under the License.
 
-Discalimer:  This Service Manager and the associated Device 
-Handlers are in no way sanctioned or supported by TP-Link.  
-All development is based upon open-source data on the 
-TP-Link devices; primarily various users on GitHub.com.
+Discalimer:  This Service Manager and the associated Device Handlers are in no way sanctioned or supported by TP-Link.  
+All  development is based upon open-source data on the TP-Link devices; primarily various users on GitHub.com.
 
-	===== History ============================================
-2018-10-23	Update to Version 3.5:
-			a.	Compatibility with new SmartThings app.
-            b.	Update capabilities per latest ST definitions
-            	1.	deleted capability polling (depreciated)
-                2.	deleted capability sensor (depreciated)
-				3.	update program to accommodate other items
-			c.	Various changes for updated Service Manager
-           	With great appreciation to Anthony Ramirez for
-            his assistance as well as leading the development
-            of the new Service Manager.
-12.07.18	3.5.03.  Corrected refresh rate update error.
-12.22.18	3.6.01.	Various updates to reduce code maintenance
-			and better interact with SmartApp.
-//	========Other System Value ==============================*/
-	def devVer() { return "3.6.01" }
-//	===========================================================
-
+===== History ================================================
+02.28.19	4.0.01	Update to production version - single file per device type.
+					Updated Service Manager to Device communications.
+======== DO NOT EDIT LINES BELOW ===========================*/
+	def devVer()	{ return "4.0.01" }
 metadata {
 	definition (name: "TP-Link Smart Energy Monitor Plug",
 				namespace: "davegut",
@@ -117,6 +98,7 @@ metadata {
     refreshRate << ["5" : "Refresh every 5 minutes"]
 	refreshRate << ["10" : "Refresh every 10 minutes"]
     refreshRate << ["15" : "Refresh every 15 minutes"]
+    refreshRate << ["30" : "Refresh every 30 minutes"]
 
 	preferences {
 		input ("refresh_Rate", "enum", title: "Device Refresh Rate", options: refreshRate)
@@ -128,7 +110,7 @@ metadata {
 //	===== Update when installed or setting changed =====
 def installed() {
 	log.info "Installing ${device.label}..."
-    updateDataValue("refreshRate", "10")
+    updateDataValue("refreshRate", "30")
 	if(getDataValue("installType") == null) { updateDataValue("installType", "Manual") }
     update()
 }
@@ -195,11 +177,13 @@ def refreshResponse(cmdResponse){
 	def status = cmdResponse.system.get_sysinfo.relay_state
 	if (status == 1) {
 		status = "on"
+		log.info "${device.label}: Power: on"
+		sendEvent(name: "switch", value: "on")
 	} else {
 		status = "off"
+		log.info "${device.label}: Power: off"
+		sendEvent(name: "switch", value: "off")
 	}
-	log.info "${device.label}: Power: ${status}"
-	sendEvent(name: "switch", value: status)
 }
 
 //	===== Get Current Energy Data =====
@@ -469,26 +453,6 @@ def actionDirector(action, cmdResponse) {
 }
 
 //	===== Child / Parent Interchange =====
-def setAppServerUrl(newAppServerUrl) {
-	updateDataValue("appServerUrl", newAppServerUrl)
-	log.info "${device.label}: Updated appServerUrl."
-}
-
-def setLightTransTime(newTransTime) {
-	switch (deviceType()) {
-    	case "Soft White Bulb":
-        case "Tunable White Bulb":
-        case "Color Bulb":
-			def transitionTime = newTransTime.toInteger()
-			def transTime = 1000*transitionTime
-			updateDataValue("transTime", "${transTime}")
-			log.info "${device.label}: Light Transition Time for set to ${transTime} milliseconds."
-			break
-        default:
-        	return
-    }
-}
-
 def setRefreshRate(refreshRate) {
 	updateDataValue("refreshRate", refreshRate)
 	switch(refreshRate) {
@@ -504,31 +468,14 @@ def setRefreshRate(refreshRate) {
 			runEvery10Minutes(refresh)
 			log.info "${device.label}: Refresh Scheduled for every 10 minutes."
 			break
-		default:
-			runEvery15Minutes(refresh)
+		case "15" :
+			runEvery10Minutes(refresh)
 			log.info "${device.label}: Refresh Scheduled for every 15 minutes."
+			break
+		default:
+			runEvery30Minutes(refresh)
+			log.info "${device.label}: Refresh Scheduled for every 30 minutes."
 	}
-}
-
-def setDeviceIP(deviceIP) { 
-	updateDataValue("deviceIP", deviceIP)
-	log.info "${device.label}: device IP set to ${deviceIP}."
-}
-
-def setGatewayIP(gatewayIP) { 
-	updateDataValue("gatewayIP", gatewayIP)
-	log.info "${device.label}: hub IP set to ${gatewayIP}."
-}
-
-def setAppVersion(appVersion) {
-	updateDataValue("appVersion", appVersion)
-    updateDataValue("deviceVersion", devVer())
-    log.info "${device.label}: Update appVersion and deviceVersion"
-}
-
-def setHubVersion(hubVersion) {
-	updateDataValue("hubVersion", hubVersion)
-    log.info "${device.label}: Updated Hub v.ersion"
 }
 
 //end-of-file

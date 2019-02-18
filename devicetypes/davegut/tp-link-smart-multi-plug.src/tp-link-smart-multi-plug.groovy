@@ -1,82 +1,46 @@
-/*
-TP-Link Plug and Switch Device Handler, 2018, Version 3
+/*	TP Link Plugs and Switches Device Handler, 2019 Version 4
 
-	Copyright 2018 Dave Gutheinz and Anthony Ramirez
+	Copyright 2018, 2019 Dave Gutheinz and Anthony Ramirez
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this  file except in compliance with the
+Licensed under the Apache License, Version 2.0(the "License"); you may not use this  file except in compliance with the
 License. You may obtain a copy of the License at:
 
 	http://www.apache.org/licenses/LICENSE-2.0
 
-Unless required by applicable law or agreed to in writing, 
-software distributed under the License is distributed on an 
-"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, 
-either express or implied. See the License for the specific 
-language governing permissions and limitations under the 
-License.
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an 
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific 
+language governing permissions and limitations under the License.
 
-Discalimer:  This Service Manager and the associated Device 
-Handlers are in no way sanctioned or supported by TP-Link.  
-All  development is based upon open-source data on the 
-TP-Link devices; primarily various users on GitHub.com.
+Discalimer:  This Service Manager and the associated Device Handlers are in no way sanctioned or supported by TP-Link.  
+All  development is based upon open-source data on the TP-Link devices; primarily various users on GitHub.com.
 
-========= History ============================================
-2018-10-23	Update to Version 3.5:
-			a.	Compatibility with new SmartThings app.
-            b.	Update capabilities per latest ST definitions
-            	1.	deleted capability polling (depreciated)
-                2.	deleted capability sensor (depreciated)
-				3.	update program to accommodate other items
-			c.	Various changes for updated Service Manager
-           	With great appreciation to Anthony Ramirez for
-            his assistance as well as leading the development
-            of the new Service Manager.
-12.07.18	3.5.03.	Corrected refresh rate update issue.
-12.22.18	3.6.01.	Various updates to reduce code maintenance
-			and better interact with SmartApp.
-======== DO NOT EDIT LINES BELOW ===*/
-//	===== Device Type Identifier =====
-//	def deviceType()	{ return "Plug" }
-//	def deviceType()	{ return "Switch" }
-//	def deviceType()	{ return "Dimming Switch" }	
-	def deviceType()	{ return "Multi-Plug" }	
-	def ocfValue() { return (deviceType() == "Plug") ? "oic.d.smartplug" : "oic.d.switch" }
-	def vidValue() { return (deviceType() == "Dimming Switch") ? "generic-dimmer" : "generic-switch" }
-	def deviceIcon()	{ return (deviceType() == "Plug") ? "st.Appliances.appliances17" : "st.Home.home30" }
-	def devVer()	{ return "3.6.01" }
-//	======================================================================================================================
-
+===== History ================================================
+02.28.19	4.0.01	Update to production version - single file per device type.
+					Updated Service Manager to Device communications.
+======== DO NOT EDIT LINES BELOW ===========================*/
+	def devVer()	{ return "4.0.01" }
 metadata {
-	definition (name: "TP-Link Smart ${deviceType()}", 
+	definition (name: "TP-Link Smart Multi-Plug", 
     			namespace: "davegut", 
                 author: "Dave Gutheinz, Anthony Ramirez", 
-                ocfDeviceType: "${ocfValue()}", 
+                ocfDeviceType: "oic.d.smartplug", 
                 mnmn: "SmartThings", 
-                vid: "${vidValue()}") {
+                vid: "generic-switch") {
 		capability "Switch"
 		capability "refresh"
 		capability "Health Check"
-		if (deviceType() == "Dimming Switch") {
-			capability "Switch Level"
-		}
 	}
 	tiles(scale: 2) {
 		multiAttributeTile(name: "switch", type: "lighting", width: 6, height: 4, canChangeIcon: true){
 			tileAttribute ("device.switch", key: "PRIMARY_CONTROL") {
-				attributeState "on", label:'${name}', action: "switch.off", icon: "${deviceIcon()}", backgroundColor: "#00a0dc",
+				attributeState "on", label:'${name}', action: "switch.off", icon: "st.Appliances.appliances17", backgroundColor: "#00a0dc",
 				nextState: "waiting"
-				attributeState "off", label:'${name}', action: "switch.on", icon: "${deviceIcon()}", backgroundColor: "#ffffff",
+				attributeState "off", label:'${name}', action: "switch.on", icon: "st.Appliances.appliances17", backgroundColor: "#ffffff",
 				nextState: "waiting"
-				attributeState "waiting", label:'${name}', action: "switch.on", icon: "${deviceIcon()}", backgroundColor: "#15EE10",
+				attributeState "waiting", label:'${name}', action: "switch.on", icon: "st.Appliances.appliances17", backgroundColor: "#15EE10",
 				nextState: "waiting"
-				attributeState "Unavailable", label:'Unavailable', action: "switch.on", icon: "${deviceIcon()}", backgroundColor: "#e86d13",
+				attributeState "Unavailable", label:'Unavailable', action: "switch.on", icon: "st.Appliances.appliances17", backgroundColor: "#e86d13",
 				nextState: "waiting"
-			}
-			if (deviceType() == "Dimming Switch") {
-				tileAttribute ("device.level", key: "SLIDER_CONTROL") {
-					attributeState "level", label: "Brightness: ${currentValue}", action:"switch level.setLevel", range: "(1..100)"
-				}
 			}
 			tileAttribute ("deviceError", key: "SECONDARY_CONTROL") {
 				attributeState "deviceError", label: '${currentValue}'
@@ -94,19 +58,20 @@ metadata {
     refreshRate << ["5" : "Refresh every 5 minutes"]
 	refreshRate << ["10" : "Refresh every 10 minutes"]
     refreshRate << ["15" : "Refresh every 15 minutes"]
+    refreshRate << ["30" : "Refresh every 30 minutes"]
 
 	preferences {
 		input ("refresh_Rate", "enum", title: "Device Refresh Rate", options: refreshRate)
 		input ("device_IP", "text", title: "Device IP (Hub Only, NNN.NNN.N.NNN)")
 		input ("gateway_IP", "text", title: "Hub IP (Hub Only, NNN.NNN.N.NNN)")
-		input ("plug_No", "text", title: "Number of the plug (00, 01, 02, etc) (Multi-Plug Only")
+		input ("plug_No", "text", title: "Plug No (Hub Only, Number of the plug (00, 01, 02, etc)")
 	}
 }
 
 //	===== Update when installed or setting changed =====
 def installed() {
 	log.info "Installing ${device.label}..."
-    updateDataValue("refreshRate", "10")
+    updateDataValue("refreshRate", "30")
 	if(getDataValue("installType") == null) { updateDataValue("installType", "Manual") }
     update()
 }
@@ -150,33 +115,15 @@ def uninstalled() {
 
 //	===== Basic Plug Control/Status =====
 def on() {
-	if (deviceType() != "Multi-Plug") {
-		sendCmdtoServer("""{"system" :{"set_relay_state" :{"state" : 1}}}""", "deviceCommand", "commandResponse")
-	} else {
-		def plugId = getDataValue("plugId")
-		sendCmdtoServer("""{"context":{"child_ids":["${plugId}"]},"system":{"set_relay_state":{"state": 1}}}""",
+	def plugId = getDataValue("plugId")
+	sendCmdtoServer("""{"context":{"child_ids":["${plugId}"]},"system":{"set_relay_state":{"state": 1}}}""",
 					"deviceCommand", "commandResponse")
-	}
 }
 
 def off() {
-	if (deviceType() != "Multi-Plug") {
-		sendCmdtoServer("""{"system" :{"set_relay_state" :{"state" : 0}}}""", "deviceCommand", "commandResponse")
-	} else {
-		def plugId = getDataValue("plugId")
-		sendCmdtoServer("""{"context":{"child_ids":["${plugId}"]},"system":{"set_relay_state":{"state": 0}}}""",
+	def plugId = getDataValue("plugId")
+	sendCmdtoServer("""{"context":{"child_ids":["${plugId}"]},"system":{"set_relay_state":{"state": 0}}}""",
 					"deviceCommand", "commandResponse")
-	}
-}
-
-def setLevel(percentage) {
-	sendCmdtoServer('{"system":{"set_relay_state":{"state": 1}}}', "deviceCommand", "commandResponse")
-	if (percentage < 0 || percentage > 100) {
-		log.error "$device.name $device.label: Entered brightness is not from 0...100"
-		percentage = 50
-	}
-	percentage = percentage as int
-	sendCmdtoServer("""{"smartlife.iot.dimmer" :{"set_brightness" :{"brightness" :${percentage}}}}""", "deviceCommand", "commandResponse")
 }
 
 def refresh(){
@@ -184,34 +131,18 @@ def refresh(){
 }
 
 def refreshResponse(cmdResponse){
-	def onOff
-	if (deviceType() != "Multi-Plug") {
-		def onOffState = cmdResponse.system.get_sysinfo.relay_state
-		if (onOffState == 1) {
-			onOff = "on"
-		} else {
-			onOff = "off"
-		}
-	} else {
-		def children = cmdResponse.system.get_sysinfo.children
-		def plugId = getDataValue("plugId")
-		children.each {
-			if (it.id == plugId) {
-				if (it.state == 1) {
-					onOff = "on"
-				} else {
-					onOff = "off"
-				}
+	def children = cmdResponse.system.get_sysinfo.children
+	def plugId = getDataValue("plugId")
+	children.each {
+		if (it.id == plugId) {
+			if (it.state == 1) {
+				sendEvent(name: "switch", value: "on")
+				log.info "${device.label}: Power: on"
+			} else {
+				sendEvent(name: "switch", value: "off")
+				log.info "${device.label}: Power: off"
 			}
 		}
-	}
-	sendEvent(name: "switch", value: onOff)
-	if (deviceType() == "Dimming Switch") {
-		def level = cmdResponse.system.get_sysinfo.brightness
-	 	sendEvent(name: "level", value: level)
-		log.info "${device.label}: Power: ${onOff} / Dimmer Level: ${level}%"
-	} else {
-		log.info "${device.label}: Power: ${onOff}"
 	}
 }
 
@@ -288,18 +219,6 @@ def actionDirector(action, cmdResponse) {
 		case "refreshResponse":
 			refreshResponse(cmdResponse)
 			break
-		case "energyMeterResponse":
-			energyMeterResponse(cmdResponse)
-			break
-		case "useTodayResponse":
-			useTodayResponse(cmdResponse)
-			break
-		case "currentDateResponse":
-			currentDateResponse(cmdResponse)
-			break
-		case "engrStatsResponse":
-			engrStatsResponse(cmdResponse)
-			break
 		case "parsePlugId" :
 			parsePlugId(cmdResponse)
 			break
@@ -309,26 +228,6 @@ def actionDirector(action, cmdResponse) {
 }
 
 //	===== Child / Parent Interchange =====
-def setAppServerUrl(newAppServerUrl) {
-	updateDataValue("appServerUrl", newAppServerUrl)
-	log.info "${device.label}: Updated appServerUrl."
-}
-
-def setLightTransTime(newTransTime) {
-	switch (deviceType()) {
-    	case "Soft White Bulb":
-        case "Tunable White Bulb":
-        case "Color Bulb":
-			def transitionTime = newTransTime.toInteger()
-			def transTime = 1000*transitionTime
-			updateDataValue("transTime", "${transTime}")
-			log.info "${device.label}: Light Transition Time for set to ${transTime} milliseconds."
-			break
-        default:
-        	return
-    }
-}
-
 def setRefreshRate(refreshRate) {
 	updateDataValue("refreshRate", refreshRate)
 	switch(refreshRate) {
@@ -344,31 +243,14 @@ def setRefreshRate(refreshRate) {
 			runEvery10Minutes(refresh)
 			log.info "${device.label}: Refresh Scheduled for every 10 minutes."
 			break
-		default:
+		case "15" :
 			runEvery15Minutes(refresh)
 			log.info "${device.label}: Refresh Scheduled for every 15 minutes."
+			break
+		default:
+			runEvery30Minutes(refresh)
+			log.info "${device.label}: Refresh Scheduled for every 30 minutes."
 	}
-}
-
-def setDeviceIP(deviceIP) { 
-	updateDataValue("deviceIP", deviceIP)
-	log.info "${device.label}: device IP set to ${deviceIP}."
-}
-
-def setGatewayIP(gatewayIP) { 
-	updateDataValue("gatewayIP", gatewayIP)
-	log.info "${device.label}: hub IP set to ${gatewayIP}."
-}
-
-def setAppVersion(appVersion) {
-	updateDataValue("appVersion", appVersion)
-    updateDataValue("deviceVersion", devVer())
-    log.info "${device.label}: Update appVersion and deviceVersion"
-}
-
-def setHubVersion(hubVersion) {
-	updateDataValue("hubVersion", hubVersion)
-    log.info "${device.label}: Updated Hub v.ersion"
 }
 
 //end-of-file
