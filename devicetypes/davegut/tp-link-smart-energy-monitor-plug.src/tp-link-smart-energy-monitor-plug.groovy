@@ -131,8 +131,8 @@ def updated() {
     } else {
     	setRefreshRate(refresh_Rate)
     }
-    if (device_IP) { setDeviceIP(device_IP) }
-    if (gateway_IP) { setGatewayIP(gateway_IP) }
+    if (device_IP) { updateDataValue("deviceIP", device_IP) }
+    if (gateway_IP) { updateDataValue("gatewayIP", gateway_IP) }
 	sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson(["protocol":"cloud", "scheme":"untracked"]), displayed: false)
     if (getDataValue("installType") == "Manual") { updateDataValue("deviceDriverVersion", devVer())  }
 	runIn(2, refresh)
@@ -145,10 +145,6 @@ def updated() {
 	schedule("0 10 0 * * ?", getEnergyStats)
 	setCurrentDate()
 	runIn(7, getEnergyStats)
-}
-
-def uninstalled() {
-	log.info "${device.label} uninstalled.  Farewell!"
 }
 
 //	===== Basic Plug Control/Status =====
@@ -360,6 +356,19 @@ def engrStatsResponse(cmdResponse) {
 	sendEvent(name: "monthAvgE", value: monAvgEnergy)
 	sendEvent(name: "weekTotalE", value: wkTotEnergy)
 	sendEvent(name: "weekAvgE", value: wkAvgEnergy)
+}
+
+def setCurrentDate() {
+	sendCmd('{"time":{"get_time":null}}', "currentDateResponse")
+}
+
+def currentDateResponse(response) {
+	def cmdResponse = parseInput(response)
+	logTrace("currentDateResponse: cmdResponse = ${cmdResponse}")
+	def currDate =  cmdResponse["time"]["get_time"]
+	state.dayToday = currDate.mday.toInteger()
+	state.monthToday = currDate.month.toInteger()
+	state.yearToday = currDate.year.toInteger()
 }
 
 //	===== Send the Command =====

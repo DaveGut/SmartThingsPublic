@@ -75,10 +75,10 @@ metadata {
 //	===== Update when installed or setting changed =====
 def installed() {
 	log.info "Installing ${device.label}..."
-    updateDataValue("refreshRate", "10")
+    updateDataValue("refreshRate", "30")
 	if(getDataValue("installType") == null) { updateDataValue("installType", "Manual") }
     update()
-    setLightTransTime(0)
+	updateDataValue("transTime", "0")
 }
 
 def ping() {
@@ -97,8 +97,8 @@ def updated() {
     } else {
     	setRefreshRate(refresh_Rate)
     }
-    if (device_IP) { setDeviceIP(device_IP) }
-    if (gateway_IP) { setGatewayIP(gateway_IP) }
+    if (device_IP) { updateDataValue("deviceIP", device_IP) }
+    if (gateway_IP) { updateDataValue("gatewayIP", gateway_IP) }
 	sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson(["protocol":"cloud", "scheme":"untracked"]), displayed: false)
     if (getDataValue("installType") == "Manual") { updateDataValue("deviceDriverVersion", devVer())  }
 	runIn(2, refresh)
@@ -111,10 +111,6 @@ def updated() {
 			updateDataValue("transTime", "${transTime}")
         }
     }
-}
-
-def uninstalled() {
-	log.info "${device.label} uninstalled.  Farewell!"
 }
 
 //	===== Basic Bulb Control/Status =====

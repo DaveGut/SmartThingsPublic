@@ -92,14 +92,17 @@ def updated() {
     } else {
     	setRefreshRate(refresh_Rate)
     }
-    if (device_IP) { setDeviceIP(device_IP) }
-    if (gateway_IP) { setGatewayIP(gateway_IP) }
-    if (getDataValue("InstallType")== "Manual" && getDataValue("deviceIP") && getDataValue("gatewayIP") && plugNo) {
-		sendCmdtoServer('{"system" :{"get_sysinfo" :{}}}', "deviceCommand", "parsePlugId")
-    }
-	sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson(["protocol":"cloud", "scheme":"untracked"]), displayed: false)
     if (getDataValue("installType") == "Manual") { updateDataValue("deviceDriverVersion", devVer())  }
-	runIn(2, refresh)
+    if (device_IP) { updateDataValue("deviceIP", device_IP) }
+    if (gateway_IP) { updateDataValue("gatewayIP", gateway_IP) }
+    if (!getDataValue("plugId")) {
+	    if (getDataValue("installType")== "Manual" && getDataValue("deviceIP") && getDataValue("deviceIP") && plug_No) {
+			sendCmdtoServer('{"system" :{"get_sysinfo" :{}}}', "deviceCommand", "parsePlugId")
+        }
+    } else { 
+    	runIn(2, refresh)
+		sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson(["protocol":"cloud", "scheme":"untracked"]), displayed: false)
+	}
 }
 
 def parsePlugId(cmdResponse) {
@@ -107,10 +110,6 @@ def parsePlugId(cmdResponse) {
 	def plugId = "${deviceData.deviceId}${plug_No}"
 	updateDataValue("plugId", plugId)
 	log.info "${device.name} ${device.label}: Plug ID set to ${plugId}"
-}
-
-def uninstalled() {
-	log.info "${device.label} uninstalled.  Farewell!"
 }
 
 //	===== Basic Plug Control/Status =====

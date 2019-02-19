@@ -75,14 +75,11 @@ def updated() {
     } else {
     	setRefreshRate(refresh_Rate)
     }
-    if (device_IP) { setDeviceIP(device_IP) }
-    if (gateway_IP) { setGatewayIP(gateway_IP) }
+    if (device_IP) { updateDataValue("deviceIP", device_IP) }
+    if (gateway_IP) { updateDataValue("gatewayIP", gateway_IP) }
 	sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson(["protocol":"cloud", "scheme":"untracked"]), displayed: false)
     if (getDataValue("installType") == "Manual") { updateDataValue("deviceDriverVersion", devVer())  }
 	runIn(2, refresh)
-}
-def uninstalled() {
-	log.info "${device.label} uninstalled.  Farewell!"
 }
 def on() {
 	sendEvent(name: "switch", value: "on")
@@ -104,9 +101,6 @@ def refreshResponse(cmdResponse){
 		sendEvent(name: "switch", value: "off")
 		log.info "${device.label}: Power: off"
 	}
-}
-def parse(response) {
-log.error response
 }
 //	===== Send the Command =====
 private sendCmdtoServer(command, hubCommand, action) {
