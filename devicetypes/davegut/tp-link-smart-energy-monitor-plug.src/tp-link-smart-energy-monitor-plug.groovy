@@ -358,17 +358,23 @@ def engrStatsResponse(cmdResponse) {
 	sendEvent(name: "weekAvgE", value: wkAvgEnergy)
 }
 
+//	===== Obtain Week and Month Data =====
 def setCurrentDate() {
-	sendCmd('{"time":{"get_time":null}}', "currentDateResponse")
+	sendCmdtoServer('{"time":{"get_time":null}}', "deviceCommand", "currentDateResponse")
 }
 
-def currentDateResponse(response) {
-	def cmdResponse = parseInput(response)
-	logTrace("currentDateResponse: cmdResponse = ${cmdResponse}")
+def currentDateResponse(cmdResponse) {
 	def currDate =  cmdResponse["time"]["get_time"]
 	state.dayToday = currDate.mday.toInteger()
 	state.monthToday = currDate.month.toInteger()
 	state.yearToday = currDate.year.toInteger()
+	def dateToday = Date.parse("yyyy-MM-dd", "${currDate.year}-${currDate.month}-${currDate.mday}")
+	def monStartDate = dateToday - 30
+	def wkStartDate = dateToday - 7
+	state.dayStart = monStartDate[Calendar.DAY_OF_MONTH].toInteger()
+	state.monthStart = monStartDate[Calendar.MONTH].toInteger() + 1
+	state.yearStart = monStartDate[Calendar.YEAR].toInteger()
+	state.weekStart = wkStartDate[Calendar.DAY_OF_MONTH].toInteger()
 }
 
 //	===== Send the Command =====
