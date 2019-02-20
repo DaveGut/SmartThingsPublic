@@ -92,25 +92,33 @@ def update() {
 def updated() {
 	log.info "Updating ${device.label}..."
 	unschedule()
-	if (!refresh_Rate) {
-    	setRefreshRate(getDataValue("refreshRate"))
-    } else {
+
+    //	Capture legacy refresh rate data
+	if (refresh_Rate) { 
     	setRefreshRate(refresh_Rate)
+    } else if (refreshRate) {
+    	setRefreshRate(refreshRate)
+    } else {
+    	setRefreshRate(getDataValue("refreshRate"))
     }
+    //	Capture legacy light transition time
+    def transTime = 0
+    if (transition_Time) {
+        if (transition_Time > 60) { 
+            transTime = transition_Time 
+        } else {
+            transTime = 1000 * transition_Time 
+        }
+    } else if (lightTransTime) { 
+        transTime = 1000 * lightTransTime
+    }
+    updateDataValue("transTime", "${transTime}")
+
     if (device_IP) { updateDataValue("deviceIP", device_IP) }
     if (gateway_IP) { updateDataValue("gatewayIP", gateway_IP) }
 	sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson(["protocol":"cloud", "scheme":"untracked"]), displayed: false)
     if (getDataValue("installType") == "Manual") { updateDataValue("deviceDriverVersion", devVer())  }
 	runIn(2, refresh)
-    if (transition_Time) {
- 	    if (transition_Time > 200) {
-		    //	Compatabilty Code
-			updateDataValue("transTime", "${transition_Time}")
-	    } else {
-			def transTime = 1000*transition_Time
-			updateDataValue("transTime", "${transTime}")
-        }
-    }
 }
 
 //	===== Basic Bulb Control/Status =====

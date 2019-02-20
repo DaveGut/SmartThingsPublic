@@ -87,11 +87,16 @@ def update() {
 def updated() {
 	log.info "Updating ${device.label}..."
 	unschedule()
-	if (!refresh_Rate) {
-    	setRefreshRate(getDataValue("refreshRate"))
-    } else {
+
+    //	Capture legacy refresh rate data
+	if (refresh_Rate) { 
     	setRefreshRate(refresh_Rate)
+    } else if (refreshRate) {
+    	setRefreshRate(refreshRate)
+    } else {
+    	setRefreshRate(getDataValue("refreshRate"))
     }
+
     if (getDataValue("installType") == "Manual") { updateDataValue("deviceDriverVersion", devVer())  }
     if (device_IP) { updateDataValue("deviceIP", device_IP) }
     if (gateway_IP) { updateDataValue("gatewayIP", gateway_IP) }

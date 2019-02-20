@@ -90,11 +90,16 @@ def update() {
 def updated() {
 	log.info "Updating ${device.label}..."
 	unschedule()
-	if (!refresh_Rate) {
-    	setRefreshRate(getDataValue("refreshRate"))
-    } else {
+
+    //	Capture legacy refresh rate data
+	if (refresh_Rate) { 
     	setRefreshRate(refresh_Rate)
+    } else if (refreshRate) {
+    	setRefreshRate(refreshRate)
+    } else {
+    	setRefreshRate(getDataValue("refreshRate"))
     }
+
     if (device_IP) { updateDataValue("deviceIP", device_IP) }
     if (gateway_IP) { updateDataValue("gatewayIP", gateway_IP) }
 	sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson(["protocol":"cloud", "scheme":"untracked"]), displayed: false)
