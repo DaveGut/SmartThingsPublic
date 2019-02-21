@@ -73,11 +73,8 @@ def installed() {
 	log.info "Installing ${device.label}..."
     updateDataValue("refreshRate", "30")
 	if(getDataValue("installType") == null) { updateDataValue("installType", "Manual") }
+	device.updateSetting("refreshRate",[type:"text", value:""])
     update()
-}
-
-def ping() {
-	refresh()
 }
 
 def update() {
@@ -91,15 +88,13 @@ def updated() {
     //	Capture legacy refresh rate data
 	if (refresh_Rate) { 
     	setRefreshRate(refresh_Rate)
-    } else if (refreshRate) {
-    	setRefreshRate(refreshRate)
     } else {
     	setRefreshRate(getDataValue("refreshRate"))
     }
 
-    if (getDataValue("installType") == "Manual") { updateDataValue("deviceDriverVersion", devVer())  }
     if (device_IP) { updateDataValue("deviceIP", device_IP) }
     if (gateway_IP) { updateDataValue("gatewayIP", gateway_IP) }
+    if (getDataValue("installType") == "Manual") { updateDataValue("deviceDriverVersion", devVer())  }
     if (!getDataValue("plugId")) {
 	    if (getDataValue("installType")== "Manual" && getDataValue("deviceIP") && getDataValue("deviceIP") && plug_No) {
 			sendCmdtoServer('{"system" :{"get_sysinfo" :{}}}', "deviceCommand", "parsePlugId")

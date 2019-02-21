@@ -72,11 +72,8 @@ def installed() {
 	log.info "Installing ${device.label}..."
     updateDataValue("refreshRate", "30")
 	if(getDataValue("installType") == null) { updateDataValue("installType", "Manual") }
+	device.updateSetting("refreshRate",[type:"text", value:""])
     update()
-}
-
-def ping() {
-	refresh()
 }
 
 def update() {
@@ -90,8 +87,6 @@ def updated() {
     //	Capture legacy refresh rate data
 	if (refresh_Rate) { 
     	setRefreshRate(refresh_Rate)
-    } else if (refreshRate) {
-    	setRefreshRate(refreshRate)
     } else {
     	setRefreshRate(getDataValue("refreshRate"))
     }

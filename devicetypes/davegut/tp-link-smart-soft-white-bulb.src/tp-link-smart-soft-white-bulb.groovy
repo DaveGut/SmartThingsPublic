@@ -77,12 +77,10 @@ def installed() {
 	log.info "Installing ${device.label}..."
     updateDataValue("refreshRate", "30")
 	if(getDataValue("installType") == null) { updateDataValue("installType", "Manual") }
-    update()
 	updateDataValue("transTime", "0")
-}
-
-def ping() {
-	refresh()
+	device.updateSetting("refreshRate",[type:"text", value:""])
+    device.updateSetting("lightTransitionTime",[type:"text", value:""])
+    update()
 }
 
 def update() {
@@ -96,23 +94,19 @@ def updated() {
     //	Capture legacy refresh rate data
 	if (refresh_Rate) { 
     	setRefreshRate(refresh_Rate)
-    } else if (refreshRate) {
-    	setRefreshRate(refreshRate)
     } else {
     	setRefreshRate(getDataValue("refreshRate"))
     }
     //	Capture legacy light transition time
     def transTime = 0
     if (transition_Time) {
-        if (transition_Time > 60) { 
-            transTime = transition_Time 
-        } else {
-            transTime = 1000 * transition_Time 
-        }
-    } else if (lightTransTime) { 
-        transTime = 1000 * lightTransTime
+	    if (transition_Time > 60) { 
+	        transTime = transition_Time 
+	    } else {
+	        transTime = 1000 * transition_Time 
+	    }
+	    updateDataValue("transTime", "${transTime}")
     }
-    updateDataValue("transTime", "${transTime}")
 
     if (device_IP) { updateDataValue("deviceIP", device_IP) }
     if (gateway_IP) { updateDataValue("gatewayIP", gateway_IP) }

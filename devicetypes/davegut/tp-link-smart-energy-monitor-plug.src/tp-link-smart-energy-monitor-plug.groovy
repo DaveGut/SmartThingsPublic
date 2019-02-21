@@ -112,11 +112,8 @@ def installed() {
 	log.info "Installing ${device.label}..."
     updateDataValue("refreshRate", "30")
 	if(getDataValue("installType") == null) { updateDataValue("installType", "Manual") }
+	device.updateSetting("refreshRate",[type:"text", value:""])
     update()
-}
-
-def ping() {
-	refresh()
 }
 
 def update() {
@@ -130,8 +127,6 @@ def updated() {
     //	Capture legacy refresh rate data
 	if (refresh_Rate) { 
     	setRefreshRate(refresh_Rate)
-    } else if (refreshRate) {
-    	setRefreshRate(refreshRate)
     } else {
     	setRefreshRate(getDataValue("refreshRate"))
     }
@@ -141,15 +136,6 @@ def updated() {
 	sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson(["protocol":"cloud", "scheme":"untracked"]), displayed: false)
     if (getDataValue("installType") == "Manual") { updateDataValue("deviceDriverVersion", devVer())  }
 	runIn(2, refresh)
-    
-	// Code unique to Energy Monitor Plug
-	state.emon = metadata.definition.energyMonitor
-	state.emeterText = "emeter"
-	state.getTimeText = "time"
-	schedule("0 05 0 * * ?", setCurrentDate)
-	schedule("0 10 0 * * ?", getEnergyStats)
-	setCurrentDate()
-	runIn(7, getEnergyStats)
 }
 
 //	===== Basic Plug Control/Status =====
