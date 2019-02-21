@@ -485,7 +485,6 @@ def updateInstallData() {
         if (child) {
 			def devVer = child.devVer()
 			child.updateDataValue("appVersion", appVersion())
-//			child.updateDataValue("plugId", it.value.plugId)
 			def installType = child.getDataValue("installType")
 			if (installType == "Node Applet") {
 				child.updateDataValue("deviceIP", it.value.deviceIP)
