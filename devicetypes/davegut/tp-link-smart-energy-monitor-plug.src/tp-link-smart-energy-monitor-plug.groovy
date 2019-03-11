@@ -17,8 +17,9 @@ All  development is based upon open-source data on the TP-Link devices; primaril
 ===== History ================================================
 02.28.19	4.0.01	Update to production version - single file per device type.
 					Updated Service Manager to Device communications.
+03.11.19	4.0.02	Update to resolve issues.
 ======== DO NOT EDIT LINES BELOW ===========================*/
-	def devVer()	{ return "4.0.01" }
+	def devVer()	{ return "4.0.02" }
 metadata {
 	definition (name: "TP-Link Smart Energy Monitor Plug",
 				namespace: "davegut",
@@ -135,7 +136,11 @@ def updated() {
     if (gateway_IP) { updateDataValue("gatewayIP", gateway_IP) }
 	sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson(["protocol":"cloud", "scheme":"untracked"]), displayed: false)
     if (getDataValue("installType") == "Manual") { updateDataValue("deviceDriverVersion", devVer())  }
+	schedule("0 05 0 * * ?", setCurrentDate)
+	schedule("0 10 0 * * ?", getEnergyStats)
+	setCurrentDate()
 	runIn(2, refresh)
+	runIn(7, getEnergyStats)
 }
 
 //	===== Basic Plug Control/Status =====
@@ -175,7 +180,7 @@ def refreshResponse(cmdResponse){
 
 //	===== Get Current Energy Data =====
 def getPower(){
-	sendCmdtoServer("""{"${state.emeterText}":{"get_realtime":{}}}""", "deviceCommand", "energyMeterResponse")
+	sendCmdtoServer("""{"emeter":{"get_realtime":{}}}""", "deviceCommand", "energyMeterResponse")
 }
 
 def energyMeterResponse(cmdResponse) {
@@ -199,7 +204,7 @@ def energyMeterResponse(cmdResponse) {
 
 //	===== Get Today's Consumption =====
 def getConsumption(){
-	sendCmdtoServer("""{"${state.emeterText}":{"get_daystat":{"month": ${state.monthToday}, "year": ${state.yearToday}}}}""", "emeterCmd", "useTodayResponse")
+	sendCmdtoServer("""{"emeter":{"get_daystat":{"month": ${state.monthToday}, "year": ${state.yearToday}}}}""", "emeterCmd", "useTodayResponse")
 }
 
 def useTodayResponse(cmdResponse) {
@@ -225,7 +230,7 @@ def getEnergyStats() {
 	state.monTotDays = 0
 	state.wkTotEnergy = 0
 	state.wkTotDays = 0
-	sendCmdtoServer("""{"${state.emeterText}":{"get_daystat":{"month": ${state.monthToday}, "year": ${state.yearToday}}}}""", "emeterCmd", "engrStatsResponse")
+	sendCmdtoServer("""{"emeter":{"get_daystat":{"month": ${state.monthToday}, "year": ${state.yearToday}}}}""", "emeterCmd", "engrStatsResponse")
 	runIn(4, getPrevMonth)
 }
 
@@ -242,23 +247,17 @@ def getPrevMonth() {
 		prevMonth = prevMonth + 1
 		runIn(4, getJan)
 	}
-	sendCmdtoServer("""{"${state.emeterText}":{"get_daystat":{"month": ${prevMonth}, "year": ${state.yearStart}}}}""", "emeterCmd", "engrStatsResponse")
+	sendCmdtoServer("""{"emeter":{"get_daystat":{"month": ${prevMonth}, "year": ${state.yearStart}}}}""", "emeterCmd", "engrStatsResponse")
 }
 
 def getJan() {
 //	Gets January data on March 1 and 2.  Only access if current month = 3
 //	and start month = 1
-	sendCmdtoServer("""{"${state.emeterText}":{"get_daystat":{"month": ${state.monthStart}, "year": ${state.yearStart}}}}""", "emeterCmd", "engrStatsResponse")
+	sendCmdtoServer("""{"emeter":{"get_daystat":{"month": ${state.monthStart}, "year": ${state.yearStart}}}}""", "emeterCmd", "engrStatsResponse")
 }
 
 def engrStatsResponse(cmdResponse) {
-/*	
-	This method parses up to two energy status messages from the device,
-	adding the energy for the previous 30 days and week, ignoring the
-	current day.  It then calculates the 30 and 7 day average formatted
-	in kiloWattHours to two decimal places.
-*/
-	def dayList = cmdResponse[state.emeterText]["get_daystat"].day_list
+	def dayList = cmdResponse["emeter"]["get_daystat"].day_list
 	if (!dayList[0]) {
 		log.info "${device.label}: Month has no energy data."
 		return
