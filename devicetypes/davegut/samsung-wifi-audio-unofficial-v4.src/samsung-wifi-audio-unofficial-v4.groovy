@@ -1,26 +1,20 @@
 /*
 Samsung WiFi Audio Device Handler (Unofficial)
 Copyright 2018 Dave Gutheinz
-
 Version 4.0 - First non-draft release.
-
 Licensed under the Apache License, Version 2.0 (the "License"); you 
 may not use this  file except in compliance with the License. You may 
 obtain a copy of the License at:
-
 		http://www.apache.org/licenses/LICENSE-2.0
-
 Unless required by applicable law or agreed to in writing, software 
 distributed under the License is distributed on an "AS IS" BASIS, 
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or 
 implied. See the License for the specific language governing 
 permissions and limitations under the License.
-
 This device handler interfaces to Samsung WiFi Soundbars.  Testing
 was completed on the HW-MS650 Soundbar using commands derived from
 internet data related to the 55001 port implementation of the 
 Samsung Wireless Speakers.
-
 This is the beta version of the device handler adding TTS Support.
 04-11	a.	Added TTS with user selected voices.
 		b.	Added capability for early speakers using
@@ -29,7 +23,6 @@ This is the beta version of the device handler adding TTS Support.
 05-01	Final update.
 		a.  Added SetUrlPlayback for speakers.
 		b.  Updated TextToSpeech and Audio Notification
-
 ===== Custom Command and Attribute API Data ===================
 playText Commands
 a	playTextAndResume(text, volume, voice) - play the text
@@ -76,21 +69,10 @@ metadata {
 		//	----- SPEAKER / PLAYER CONTROL -----
 		capability "Switch"
 		capability "Refresh"
-		capability "Music Player"		//	Depreciated
-		capability "Sensor"				//	Depreciated
-		capability "Actuator"			//	Depreciated
-		capability "Audio Notification"	//	playTrack(), playTrackAndResume(), playTrackAndRestore()
-//		capability "Audio Mute"			//	mute(), unnute()
-//		capability "Audio Volume"		//	setVolume(), volumeUp(), volumeDown()
-//		capability "Media Controller"	//	startActivity(), attributes: activities, currentActivity
-//		capability "Media Input Source"	//	setInputSource(), att: inputSource, supportInputSources
-//		capability "Media Playback Repeat"	//	setPlaybackRepeatMode(all, off, one).  playbackRepeatMode
-//		capability "Media Playback Shuffle"	//	setPlaybackShuffle.  playbackShuffle(enabled, disabled)
-//		capability "Media Playback"	//	setPlaybackStatus(), play(), pause(), stop().  att: level, playbackStatus
-//		capability "Media Preset"	//	selecPreset(), playPresset().  presets
-//		capability "Media Track Control"	//	nextTrack(), previousTrack()
-//		capability "Notification"	//	??	deviceNotification(string)	could be used for TTS.
-//		capability "Speech Synthesis"	//	speak(string)
+		capability "Music Player"
+		capability "Sensor"
+		capability "Actuator"
+		capability "Audio Notification"
 //	===== Custom Commands and Attributes =======
 		//	----- SPEAKER / PLAYER CONTROL -----
 		command "toggleRepeat"
@@ -146,11 +128,10 @@ metadata {
 		command "clearErrorMsg"
 		attribute "errorMessage", "string"
 		//	----- playTextAnd -----
-		command "playTextAndResume", ["string","number"]		//	uri,level
+		command "playTextAndResume", ["string","number"]
 		command "playTextAndRestore", ["string","number"]
-		command "playTextAsVoiceAndResume", ["string","number","string"]		//uri, level, voice
+		command "playTextAsVoiceAndResume", ["string","number","string"]
 		command "playTextAsVoiceAndRestore", ["string","number","string"]
-//		command "playTrack", ["string", "number"]
 	}
 
 	tiles(scale: 2) {
@@ -509,6 +490,9 @@ def getSources() {
 			case "HW-K650":
  					sources = ["wifi", "bt", "soundshare", "aux", "optical", "usb", "hdmi"]
  				break
+            case "HW-N950":
+ 					sources = ["wifi", "bt", "optical", "hdmi1", "hdmi2"]
+            	break
 			default:
 				sources = ["wifi","bt","soundshare"]
 				break
