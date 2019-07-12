@@ -23,9 +23,9 @@ metadata {
 	definition (name: "TP-Link Smart Plug", 
     			namespace: "davegut", 
                 author: "Dave Gutheinz, Anthony Ramirez", 
-                ocfDeviceType: "oic.d.smartplug", 
+                ocfDeviceType: "oic.d.smartplug"/*, 
                 mnmn: "SmartThings", 
-                vid: "generic-switch") {
+                vid: "generic-switch"*/) {
 		capability "Switch"
 		capability "refresh"
 		capability "Actuator"
