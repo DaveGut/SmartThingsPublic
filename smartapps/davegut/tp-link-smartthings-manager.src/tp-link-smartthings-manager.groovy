@@ -395,6 +395,8 @@ def addDevices() {
 	tpLinkModel << ["LB110" : "TP-Link Smart Soft White Bulb"]
 	tpLinkModel << ["KL110" : "TP-Link Smart Soft White Bulb"]
 	tpLinkModel << ["LB200" : "TP-Link Smart Soft White Bulb"]
+	tpLinkModel << ["KL50(" : "TP-Link Smart Soft White Bulb"]
+	tpLinkModel << ["KL60(" : "TP-Link Smart Warm Amber Bulb"]
 	//	Tunable White Bulbs
 	tpLinkModel << ["LB120" : "TP-Link Smart Tunable White Bulb"]
 	tpLinkModel << ["KL120" : "TP-Link Smart Tunable White Bulb"]
