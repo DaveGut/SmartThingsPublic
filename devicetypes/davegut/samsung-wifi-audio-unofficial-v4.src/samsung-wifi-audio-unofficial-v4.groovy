@@ -1272,7 +1272,25 @@ def playTextAsVoiceAndResume(text, volume=null, voice=null) {
 }
 
 def playTrack(String trackUri, volume=null) {
-	log.error "NOT SUPPORTED"
+//	log.error "NOT SUPPORTED"
+	if (state.spkType == "sub") {
+		//	If a subspeaker in group, send to the Main speaker.
+		log.info "playTrack: Subspeaker sending Audio Notification to Main Group Speaker."
+		parent.sendCmdToMain(state.mainSpkDNI, "playTrackAndResume", trackUrl, duration, volume, "")
+	} else {
+		log.info "playTrack(${trackUrl}, ${volume}) on the Speaker"
+		if(volume) {
+				setLevel(volume.toInteger())
+		}
+		if (swType == "SoundPlus") {
+			def result = []
+			result << sendUpnpCmd("SetAVTransportURI", [InstanceID: 0, CurrentURI: trackUrl, CurrentURIMetaData: ""])
+			result << sendUpnpCmd("Play")
+			result
+		} else {
+			SetUrlPlayback(trackUrl, "0")
+		}
+	}
 }
 
 def playTrackAndRestore(trackUrl, duration, volume=null) {
